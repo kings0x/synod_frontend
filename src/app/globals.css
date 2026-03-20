@@ -1,26 +1,131 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Synod Dark Visual Identity Core Palette */
+  --bg-base: #0a0a0b;
+  --bg-surface: #111113;
+  --bg-lift: #14131a;
+  --bg-deep: #171520;
+
+  --ink: #e8e8ec;
+  --ink-muted: rgba(232, 232, 236, 0.55);
+
+  --brand: #a78bfa;
+  --accent: #c4b5fd;
+
+  --line: rgba(255, 255, 255, 0.08);
+  --dot-color: rgba(167, 139, 250, 0.16);
+  --dot-glow: rgba(167, 139, 250, 0.34);
+
+  --font-display: var(--font-oswald), "Arial Black", sans-serif;
+  --font-mono: var(--font-space-mono), "Courier New", monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── Base resets ────────────────────────────────────── */
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html {
+  scroll-behavior: smooth;
+}
+
+/* 
+ * 1. Base Tone:
+ * The body holds the base black tone (#0a0a0b) and a vertical gradient
+ * dropping from charcoal (#111113) down to deep black (#0a0a0b).
+ */
+body {
+  font-family: var(--font-mono);
+  background: var(--bg-base);
+  background-image: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-base) 100vh);
+  background-attachment: fixed;
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+/* 
+ * 2. Atmospheric Blooms:
+ * The page-shell pseudo-elements inject the soft radial glows (white/violet) 
+ * to mimic Renew's airy lighting, translated to dark mode.
+ */
+.page-shell {
+  position: relative;
+  z-index: 1;
+}
+
+/* Top centered gentle wash (cool white bloom, very low opacity) */
+.page-shell::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(circle at 50% 0%,
+      rgba(255, 255, 255, 0.035) 0%,
+      rgba(255, 255, 255, 0) 60%);
+}
+
+/* Lower asymmetrical atmospheric slate-violet undertone */
+.page-shell::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(ellipse at 70% 80%,
+      rgba(167, 139, 250, 0.025) 0%,
+      rgba(23, 21, 32, 0.04) 40%,
+      transparent 70%);
+}
+
+/* ── Scrollbar ────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+/* ── Selection ────────────────────────────────────── */
+::selection {
+  background: rgba(167, 139, 250, 0.3);
+  color: #fff;
+}
+
+/* ── Caret blink for cursor effect ──────────────── */
+@keyframes hero-caret {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Reduced motion ─────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
