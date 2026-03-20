@@ -46,13 +46,13 @@ export default function HeroSection() {
                         </motion.h1>
 
                         {/* ── Subheadline ── */}
-                        <motion.p
+                        {/* <motion.p
                             variants={fadeUp}
                             className="mt-6 max-w-[38ch] text-base leading-7 sm:text-lg sm:leading-8"
                             style={{ fontFamily: "var(--font-mono)", color: "var(--ink-muted)" }}
                         >
                             Synod is the treasury layer for autonomous AI agents.
-                        </motion.p>
+                        </motion.p> */}
 
                         {/* ── CTAs ── */}
                         <motion.div
