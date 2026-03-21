@@ -6,17 +6,17 @@ const steps = [
     {
         number: "01",
         title: "Define the rules",
-        body: "Set who can spend, how much, and under what conditions. Your Capital Constitution is the law — agents operate within it or not at all.",
+        body: "Set who can spend, how much, and when. Your Capital Constitution is final.",
     },
     {
         number: "02",
         title: "Agents request, policy decides",
-        body: "When an agent needs capital, Synod checks the request against your rules in real time. A valid request gets a signed permit. An invalid one gets nothing.",
+        body: "Requests are checked in real time. Valid ones get signed. Invalid ones don't.",
     },
     {
         number: "03",
-        title: "Capital moves on Stellar",
-        body: "Approved transactions execute on Stellar with multisig enforcement. No override, no workaround — the network itself is the final authority.",
+        title: "Execution on-chain",
+        body: "Approved actions execute with enforced controls. No overrides. No exceptions.",
     },
 ];
 
@@ -30,7 +30,7 @@ export default function HowItWorksSection() {
                     <Reveal className="lg:sticky lg:top-28 lg:self-start" offset={24}>
                         <div className="max-w-2xl">
                             <h2
-                                className="font-display text-4xl leading-[0.98] tracking-[-0.06em] text-[var(--ink)] text-balance sm:text-[3.25rem] uppercase"
+                                className="font-display text-3xl leading-[0.98] tracking-[-0.06em] text-[var(--ink)] text-balance sm:text-4xl lg:text-[3.25rem] uppercase"
                                 style={{ fontFamily: "var(--font-display)" }} // Oswald
                             >
                                 FROM CONSTITUTION TO CAPITAL
@@ -39,7 +39,7 @@ export default function HowItWorksSection() {
                     </Reveal>
 
                     {/* Right Column: Vertical Timeline Rail */}
-                    <div className="relative ml-5 border-l border-white/10 pl-8 sm:ml-6 sm:pl-12 lg:ml-0">
+                    <div className="relative ml-4 border-l border-white/10 pl-6 sm:ml-6 sm:pl-12 lg:ml-0">
                         {steps.map((step, idx) => (
                             <Reveal
                                 key={idx}
@@ -48,15 +48,14 @@ export default function HowItWorksSection() {
                                 className={idx === steps.length - 1 ? "" : "pb-5 sm:pb-6"}
                             >
                                 {/* Premium Dark Glassmorphism Step Card */}
-                                <div className="relative rounded-[2rem] border border-[rgba(255,255,255,0.06)] bg-[rgba(20,19,26,0.35)] backdrop-blur-xl p-6 sm:p-7 shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-colors">
+                                <div className="relative rounded-xl sm:rounded-[2rem] border border-[rgba(255,255,255,0.06)] bg-[rgba(20,19,26,0.35)] backdrop-blur-xl p-5 sm:p-6 lg:p-7 shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-colors">
                                     {/* Subtle top-inner highlight for glass rim */}
                                     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.15)] to-transparent rounded-t-[2rem]" />
 
                                     {/* Timeline Badge */}
-                                    {/* Size 14 (3.5rem). Mobile pl-8 (2rem offset) => left offset is 2.0 + 1.75 = 3.75rem */}
-                                    {/* Tablet sm:pl-12 (3rem offset) => left offset is 3.0 + 1.75 = 4.75rem */}
-                                    {/* Adds +1px precision for center of border */}
-                                    <div className="absolute -left-[calc(3.75rem+1px)] sm:-left-[calc(4.75rem+1px)] top-6 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-[var(--ink)] text-lg font-bold tracking-tight text-[#0a0a0b] shadow-[0_4px_24px_rgba(255,255,255,0.12)]">
+                                    {/* Mobile: h-10 w-10, gap from card via left offset */}
+                                    {/* Desktop: h-14 w-14, aligned to timeline border */}
+                                    <div className="absolute -left-[calc(2.85rem+1px)] sm:-left-[calc(4.75rem+1px)] top-5 sm:top-6 flex h-10 w-10 sm:h-14 sm:w-14 items-center justify-center rounded-lg sm:rounded-2xl border border-white/20 bg-[var(--ink)] text-sm sm:text-lg font-bold tracking-tight text-[#0a0a0b] shadow-[0_4px_24px_rgba(255,255,255,0.12)]">
                                         {step.number}
                                     </div>
 

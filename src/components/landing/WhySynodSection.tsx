@@ -73,7 +73,7 @@ export default function WhySynodSection() {
                     <Reveal className="lg:sticky lg:top-28 lg:self-start" offset={24}>
                         <div className="max-w-xl">
                             <h2
-                                className="leading-[0.98] tracking-[-0.06em] text-[var(--ink)] text-4xl sm:text-[3.25rem] uppercase"
+                                className="leading-[0.98] tracking-[-0.06em] text-[var(--ink)] text-3xl sm:text-4xl lg:text-[3.25rem] uppercase"
                                 style={{ fontFamily: "var(--font-display)" }}
                             >
                                 Programmable Guardrails
@@ -124,13 +124,13 @@ export default function WhySynodSection() {
                                         // @ts-ignore
                                         ref={(el) => (cardRefs.current[idx] = el)}
                                         data-index={idx}
-                                        className={`rounded-[2rem] p-7 sm:p-9 border shadow-lg transition-colors ${isEven
+                                        className={`rounded-xl sm:rounded-[2rem] p-5 sm:p-7 lg:p-9 border shadow-lg transition-colors ${isEven
                                             ? "border-[var(--line)] bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.03),transparent_40%),linear-gradient(180deg,var(--bg-lift)_0%,var(--bg-surface)_100%)]"
                                             : "border-[rgba(255,255,255,0.06)] bg-[#18181b]"
                                             }`}
                                     >
                                         <h3
-                                            className="max-w-[12ch] text-[1.9rem] leading-[1.02] tracking-[-0.05em] text-[var(--ink)] sm:text-[2.25rem] font-bold"
+                                            className="max-w-[12ch] text-[1.6rem] sm:text-[1.9rem] leading-[1.02] tracking-[-0.05em] text-[var(--ink)] lg:text-[2.25rem] font-bold"
                                         >
                                             {feature.title}
                                         </h3>

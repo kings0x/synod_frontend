@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   title: "Synod | Treasury Governance for AI Agents",
   description:
     "Synod is the treasury layer for autonomous AI agents — multisig-enforced, policy-governed, built on Stellar.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

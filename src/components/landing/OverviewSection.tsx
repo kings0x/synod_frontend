@@ -52,6 +52,7 @@ export default function OverviewSection() {
             ref={containerRef}
             // intentional taller-than-viewport height to create scrolling distance
             className="relative min-h-[150svh] sm:min-h-[160svh] lg:min-h-[170svh]"
+            style={{ position: "relative" }}
         >
             <div className="sticky top-[5.75rem] flex items-start pt-6 sm:pt-8 lg:pt-10 min-h-[calc(100svh-5.75rem)] w-full">
                 <div className="mx-auto w-full max-w-[1200px] px-4 sm:px-6 lg:px-8">

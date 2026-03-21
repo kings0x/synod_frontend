@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useAnimation } from "framer-motion";
+import { useEffect } from "react";
 import DotGrid from "./DotGrid";
 import AnimatedWordTicker from "./AnimatedWordTicker";
 
@@ -11,10 +12,17 @@ const stagger = {
 
 const fadeUp = {
     hidden: { opacity: 0, y: 32 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+    show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
 };
 
 export default function HeroSection() {
+    const controls = useAnimation();
+
+    useEffect(() => {
+        // Explicitly start animation on mount to bypass Next.js back-navigation cache issues
+        controls.start("show");
+    }, [controls]);
+
     return (
         <section className="relative z-0 flex min-h-[calc(100svh-6.5rem)] items-center overflow-hidden pb-20 pt-8 isolate sm:pb-24 lg:min-h-[calc(100svh-7rem)] lg:pb-32">
             {/* ── Radial gradient overlay ── */}
@@ -30,7 +38,7 @@ export default function HeroSection() {
                     <motion.div
                         variants={stagger}
                         initial="hidden"
-                        animate="show"
+                        animate={controls}
                     >
                         <motion.h1
                             variants={fadeUp}
@@ -38,7 +46,10 @@ export default function HeroSection() {
                             style={{ fontFamily: "var(--font-display)" }}
                         >
                             <span className="block text-[clamp(3.3rem,8vw,6.8rem)] uppercase">
-                                GOVERN <AnimatedWordTicker />
+                                <span className="sm:inline">GOVERN </span>
+                                <span className="block sm:inline">
+                                    <AnimatedWordTicker />
+                                </span>
                             </span>
                             <span className="block text-[clamp(2.8rem,6.7vw,5.8rem)] uppercase">
                                 ON-CHAIN BY POLICY
@@ -62,7 +73,7 @@ export default function HeroSection() {
                             {/* Primary CTA */}
                             <a
                                 className="inline-flex items-center justify-center rounded-full px-5 py-3 sm:px-7 sm:py-3.5 text-sm font-semibold tracking-[-0.02em] transition-colors duration-200 bg-[var(--brand)] text-[var(--bg-base)] hover:bg-[var(--accent)]"
-                                href="/login"
+                                href="#"
                                 style={{ fontFamily: "var(--font-mono)" }}
                             >
                                 Get started
