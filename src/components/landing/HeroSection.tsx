@@ -82,7 +82,7 @@ export default function HeroSection() {
                             {/* Ghost CTA */}
                             <a
                                 className="inline-flex items-center justify-center rounded-full px-5 py-3 sm:px-7 sm:py-3.5 text-sm font-semibold tracking-[-0.02em] transition-colors duration-200 border border-[var(--line)] bg-white/5 text-[var(--ink)] hover:bg-white/10"
-                                href="/docs"
+                                href="#"
                                 style={{ fontFamily: "var(--font-mono)" }}
                             >
                                 View docs
