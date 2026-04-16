@@ -34,7 +34,7 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`${oswald.variable} ${spaceMono.variable}`}
     >
-      <body className="min-h-screen bg-[var(--bg-base)] text-[var(--ink)] antialiased">
+      <body className="min-h-screen bg-(--bg-base) text-(--ink) antialiased">
         {children}
       </body>
     </html>
