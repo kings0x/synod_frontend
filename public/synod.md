@@ -127,7 +127,7 @@ If `storage_type === "memory_store"`, your key does not survive process exit. Tr
 
 **Possible statuses:**
 
-- `ready` - proceed to `connect_to_synod()`
+- `ready` - your slot exists in Synod with validated `name + public_key` saved, so proceed to `connect_to_synod()`
 - `pending` - keep waiting
 - `not_found` - the public key is not registered yet
 - `timeout` - 3 minutes elapsed with no ready confirmation
@@ -137,6 +137,7 @@ If `storage_type === "memory_store"`, your key does not survive process exit. Tr
 
 - For a newly created identity, start polling 5 seconds after you have shown the user the public key.
 - The user has no direct way to tell you the exact moment they clicked **Done**, so do not wait for explicit confirmation before beginning the first polling cycle.
+- `ready` is based on slot creation only. Wallet assignment and policy setup may happen later and do not block connection readiness.
 - Do not call `connect_to_synod()` for a newly created identity until this returns `ready`.
 - If it returns `not_found`, remind the user to add an agent slot and paste your public key.
 - If it reaches `timeout`, stop polling and tell the user to say `"continue"` when they are done in the dashboard. Then wait for the user's prompt before polling again.

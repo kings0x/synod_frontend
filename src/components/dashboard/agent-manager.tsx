@@ -226,6 +226,8 @@ export function AgentManager({
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [sdkTab, setSdkTab] = useState<SdkTab>("python")
   const [modalError, setModalError] = useState("")
+  const [showPolicyPromptModal, setShowPolicyPromptModal] = useState(false)
+  const [policyPromptAgentId, setPolicyPromptAgentId] = useState<string | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<AgentSlot | null>(null)
   const [enrollmentPubkey, setEnrollmentPubkey] = useState("")
   const [bindingAgentId, setBindingAgentId] = useState<string | null>(null)
@@ -265,6 +267,11 @@ export function AgentManager({
     setNewAgentPubKey("")
     setModalError("")
     setCopiedTarget(null)
+  }
+
+  const closePolicyPrompt = () => {
+    setShowPolicyPromptModal(false)
+    setPolicyPromptAgentId(null)
   }
 
   const handleNextStep = (event: React.FormEvent<HTMLFormElement>) => {
@@ -311,6 +318,8 @@ export function AgentManager({
       setSelectedAgentId(result.agent.agent_id)
       await Promise.resolve(onAgentsChange())
       resetProvisionModal()
+      setPolicyPromptAgentId(result.agent.agent_id)
+      setShowPolicyPromptModal(true)
     } catch (err) {
       console.error(err)
       setModalError(err instanceof Error ? err.message : "Provisioning failed. Please try again.")
@@ -480,7 +489,7 @@ export function AgentManager({
                           <td colSpan={4} className="px-6 py-20 text-center">
                             <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-synod-muted">No Agent Slots Yet</div>
                             <p className="mt-3 text-xs text-synod-muted-dark">
-                              Create a slot, paste the agent public key, and wallet-sign the binding when you are ready to activate it.
+                              Create a slot, paste the agent public key, and click Done. That registration is enough for the agent to begin the Synod connection flow.
                             </p>
                           </td>
                         </tr>
@@ -567,7 +576,7 @@ export function AgentManager({
                 <div className="flex items-center justify-between border-b border-synod-border px-5 py-4">
                   <div>
                     <div className="text-sm font-bold text-white">{selectedAgent.name}</div>
-                    <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-synod-muted">Approved agent signer slot</div>
+                    <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-synod-muted">Registered agent slot</div>
                   </div>
                   <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] ${statusClasses(selectedAgent.status)}`}>
                     {displayStatus(selectedAgent.status)}
@@ -599,7 +608,7 @@ export function AgentManager({
                     <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-synod-muted">Capital Rules</div>
                     <div className="rounded-md border border-synod-border bg-black px-4 py-4 space-y-3">
                       <p className="text-sm leading-6 text-synod-muted">
-                        This page only manages slot identity and signer enrollment. Wallet access, allocation, tier limits, and concurrency rules live in Policy.
+                        This page manages slot identity and connection details. Wallet access, allocation, tier limits, and concurrency rules live in Policy and can be assigned now or later.
                       </p>
                       {onManageRules && (
                         <Button
@@ -638,7 +647,7 @@ export function AgentManager({
                       <div>
                         <div className="text-[9px] uppercase tracking-[0.16em] text-synod-muted-dark">Activation Flow</div>
                         <div className="mt-1 text-[11px] leading-6 text-synod-muted">
-                          Bind the public key, configure capital rules, make the key an on-chain signer, then let the agent complete the Synod Connect challenge.
+                          Once this slot is saved, the agent can complete the Synod Connect handshake. Wallet assignment and policy setup are optional follow-up steps handled in Policy.
                         </div>
                       </div>
                     </div>
@@ -712,7 +721,7 @@ export function AgentManager({
                         <div className="mt-2">
                           <button
                             type="button"
-                            onClick={() => copyToClipboard("https://synod.app/skills/core", "agent_id")}
+                            onClick={() => copyToClipboard("https://synodai.xyz/synod.md", "agent_id")}
                             className="inline-flex items-center rounded-md border border-synod-border bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white transition-colors hover:border-synod-border-strong"
                           >
                             <Copy size={12} className="mr-1.5" />
@@ -724,7 +733,7 @@ export function AgentManager({
                         <span className="font-bold text-white">2.</span> The agent should return your public key. Copy the key and paste it here.
                       </div>
                       <div>
-                        <span className="font-bold text-white">3.</span> Click Done and go back, then prompt your agent to continue its connection.
+                        <span className="font-bold text-white">3.</span> Click Done. The slot is saved immediately, so the agent can continue its connection right away.
                       </div>
                     </div>
                   </section>
@@ -763,6 +772,52 @@ export function AgentManager({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showPolicyPromptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-synod-border bg-[#07070b] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-synod-border px-6 py-5">
+              <div>
+                <div className="text-lg font-bold text-white">Slot Registered</div>
+                <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-synod-muted">Connection can begin now</div>
+              </div>
+              <button type="button" onClick={closePolicyPrompt} className="text-synod-muted transition-colors hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4 px-6 py-6">
+              <div className="rounded-xl border border-synod-border bg-black px-4 py-4 text-sm leading-6 text-synod-muted">
+                The agent slot is saved and ready for Synod Connect. You can assign wallet access and policy rules now, or leave that for later.
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 px-6 pb-6">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={closePolicyPrompt}
+                className="h-10 border border-synod-border px-4 text-[10px] font-bold uppercase tracking-[0.16em] text-synod-muted hover:text-white"
+              >
+                Do It Later
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onManageRules && policyPromptAgentId) {
+                    onManageRules(policyPromptAgentId)
+                  }
+                  closePolicyPrompt()
+                }}
+                className="inline-flex h-10 items-center justify-center rounded-lg bg-white px-4 text-[10px] font-bold uppercase tracking-[0.16em] text-black transition-colors hover:bg-zinc-200"
+              >
+                Assign Now
+              </button>
+            </div>
           </div>
         </div>
       )}
