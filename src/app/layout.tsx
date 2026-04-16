@@ -15,9 +15,9 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Synod | Treasury Governance for AI Agents",
+  title: "Synod | Policy-Controlled Treasury Infrastructure",
   description:
-    "Synod is the treasury layer for autonomous AI agents — multisig-enforced, policy-governed, built on Stellar.",
+    "Synod is the control layer for treasury execution - policy-governed, multisig-enforced, built for agents, bots, workflows, and teams.",
   icons: {
     icon: "/icon.svg",
   },
@@ -29,7 +29,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${oswald.variable} ${spaceMono.variable}`}>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      className={`${oswald.variable} ${spaceMono.variable}`}
+    >
       <body className="min-h-screen bg-[var(--bg-base)] text-[var(--ink)] antialiased">
         {children}
       </body>

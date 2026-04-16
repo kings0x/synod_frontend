@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export function Footer() {
@@ -7,7 +8,13 @@ export function Footer() {
                 <div className="flex flex-col gap-5 border-t border-white/10 pt-6 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
                     <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-4">
                         <div className="relative flex items-center h-4 sm:h-[1.125rem]">
-                            <img src="/synod_logo.png" alt="Synod Logo" className="h-full w-auto opacity-90" />
+                            <Image
+                                src="/synod_logo.png"
+                                alt="Synod Logo"
+                                width={320}
+                                height={72}
+                                className="h-full w-auto opacity-90"
+                            />
                         </div>
                         <p className="max-w-[36ch] text-xs text-white/50" style={{ fontFamily: "var(--font-mono)" }}>
                             The Governance Layer for Autonomous Capital
@@ -19,11 +26,11 @@ export function Footer() {
                             <Link className="font-medium transition-colors hover:text-[var(--brand)]" href="/">
                                 Home
                             </Link>
-                            <Link className="font-medium transition-colors hover:text-[var(--brand)]" href="#">
+                            <Link className="font-medium transition-colors hover:text-[var(--brand)]" href="/docs">
                                 Docs
                             </Link>
-                            <a className="font-medium transition-colors hover:text-[var(--brand)]" href="#">
-                                Twitter
+                            <a className="font-medium transition-colors hover:text-[var(--brand)]" href="https://x.com/synodlabs" target="_blank" rel="noopener noreferrer">
+                                X
                             </a>
                             <a className="font-medium transition-colors hover:text-[var(--brand)]" href="https://github.com/kings0x/synod.git" target="_blank" rel="noopener noreferrer">
                                 GitHub

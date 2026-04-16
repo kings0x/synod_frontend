@@ -15,6 +15,7 @@ export default function AnimatedWordTicker() {
 
     useEffect(() => {
         const currentWord = WORDS[wordIndex];
+        let pauseTimer: ReturnType<typeof setTimeout> | undefined;
 
         const timer = setTimeout(() => {
             // Typing logic
@@ -23,7 +24,7 @@ export default function AnimatedWordTicker() {
                     setText(currentWord.slice(0, text.length + 1));
                 } else {
                     // Pause before deleting
-                    setTimeout(() => setIsDeleting(true), PAUSE_DURATION);
+                    pauseTimer = setTimeout(() => setIsDeleting(true), PAUSE_DURATION);
                 }
             }
             // Deleting logic
@@ -38,7 +39,12 @@ export default function AnimatedWordTicker() {
             }
         }, isDeleting ? DELETING_SPEED : TYPING_SPEED);
 
-        return () => clearTimeout(timer);
+        return () => {
+            clearTimeout(timer);
+            if (pauseTimer) {
+                clearTimeout(pauseTimer);
+            }
+        };
     }, [text, isDeleting, wordIndex]);
 
     return (

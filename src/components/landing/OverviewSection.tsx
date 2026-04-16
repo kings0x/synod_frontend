@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform, type MotionValue } from "framer-motion";
 
 const OVERVIEW_TEXT =
     "Let AI agents move capital — without ever trusting them. enforcing how AI agents move money, at the network level, not by trust";
@@ -14,7 +14,7 @@ function AnimatedWord({
     total,
 }: {
     word: string;
-    progress: any;
+    progress: MotionValue<number>;
     index: number;
     total: number;
 }) {

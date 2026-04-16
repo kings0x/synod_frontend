@@ -121,8 +121,9 @@ export default function WhySynodSection() {
                             return (
                                 <Reveal key={idx} delay={0.1 * (idx + 1)} offset={26} className="h-full">
                                     <div
-                                        // @ts-ignore
-                                        ref={(el) => (cardRefs.current[idx] = el)}
+                                        ref={(el) => {
+                                            cardRefs.current[idx] = el;
+                                        }}
                                         data-index={idx}
                                         className={`rounded-xl sm:rounded-[2rem] p-5 sm:p-7 lg:p-9 border shadow-lg transition-colors ${isEven
                                             ? "border-[var(--line)] bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.03),transparent_40%),linear-gradient(180deg,var(--bg-lift)_0%,var(--bg-surface)_100%)]"

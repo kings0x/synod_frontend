@@ -1,31 +1,62 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+
+type NavLink = {
+    label: string;
+    href: string;
+};
+
+type SkillLink = NavLink & {
+    download?: boolean;
+};
+
+const NAV_LINKS: NavLink[] = [
+    { label: "About Synod", href: "#overview" },
+    { label: "Blog", href: "/blog" },
+    { label: "Docs", href: "/docs" },
+    { label: "Sandbox", href: "/sandbox" },
+] as const;
+
+const SKILL_LINKS: SkillLink[] = [
+    { label: "View synod.md", href: "/synod.md" },
+    { label: "Download synod.md", href: "/synod.md", download: true },
+] as const;
 
 export default function Header() {
-    const [scrolled, setScrolled] = useState(false);
+    const [scrolled, setScrolled] = useState(() => {
+        if (typeof window === "undefined") {
+            return false;
+        }
+
+        return window.scrollY > 20;
+    });
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [mobileSkillOpen, setMobileSkillOpen] = useState(false);
     const [visible, setVisible] = useState(true);
+    const lastScrollYRef = useRef(0);
+
+    const closeMobileMenus = () => {
+        setMobileOpen(false);
+        setMobileSkillOpen(false);
+    };
 
     useEffect(() => {
-        // Initialize state on mount to handle Next.js scroll restoration
-        const initialScrollY = window.scrollY;
-        setScrolled(initialScrollY > 20);
-
-        let lastScrollY = initialScrollY;
+        lastScrollYRef.current = window.scrollY;
 
         const onScroll = () => {
             const currentScrollY = window.scrollY;
             setScrolled(currentScrollY > 20);
 
-            if (currentScrollY > lastScrollY && currentScrollY > 50) {
+            if (currentScrollY > lastScrollYRef.current && currentScrollY > 50) {
                 setVisible(false);
             } else {
                 setVisible(true);
             }
 
-            lastScrollY = currentScrollY;
+            lastScrollYRef.current = currentScrollY;
         };
 
         window.addEventListener("scroll", onScroll, { passive: true });
@@ -36,30 +67,74 @@ export default function Header() {
         <header className={`sticky top-0 z-40 py-5 transition-transform duration-300 ease-out ${visible ? "translate-y-0" : "-translate-y-[140%]"}`}>
             <div className="mx-auto w-full max-w-[1200px] px-4 sm:px-6 lg:px-8">
                 <div
-                    className={`rounded-[1.75rem] px-5 py-3 transition-all duration-300 max-sm:px-3 border ${scrolled
-                        ? "border-[var(--line)] bg-[var(--bg-base)]/90 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+                    className={`rounded-[1.75rem] border px-5 py-3 transition-all duration-300 max-sm:px-3 ${scrolled
+                        ? "border-[var(--line)] bg-[var(--bg-base)]/90 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl"
                         : "border-transparent bg-transparent"
                         }`}
                 >
                     <div className="flex items-center justify-between">
-                        {/* ── Logo ── */}
                         <Link aria-label="Synod home" className="shrink-0" href="/">
-                            <img src="/synod_logo.png" alt="Synod Logo" className="h-4 sm:h-[1.125rem] w-auto" />
+                            <Image
+                                src="/synod_logo.png"
+                                alt="Synod Logo"
+                                width={320}
+                                height={72}
+                                priority
+                                className="h-4 w-auto sm:h-[1.125rem]"
+                            />
                         </Link>
 
-                        {/* ── Desktop Nav ── */}
                         <nav aria-label="Primary" className="hidden items-center gap-8 lg:flex">
-                            <a className="text-sm font-semibold tracking-[-0.02em] transition-colors text-[var(--ink-muted)] hover:text-[var(--brand)]" href="#overview" style={{ fontFamily: "var(--font-mono)" }}>Overview</a>
-                            <a className="text-sm font-semibold tracking-[-0.02em] transition-colors text-[var(--ink-muted)] hover:text-[var(--brand)]" href="#why-synod" style={{ fontFamily: "var(--font-mono)" }}>Why Synod</a>
-                            <a className="text-sm font-semibold tracking-[-0.02em] transition-colors text-[var(--ink-muted)] hover:text-[var(--brand)]" href="#how-it-works" style={{ fontFamily: "var(--font-mono)" }}>How it works</a>
-                            <a className="text-sm font-semibold tracking-[-0.02em] transition-colors text-[var(--ink-muted)] hover:text-[var(--brand)]" href="#" style={{ fontFamily: "var(--font-mono)" }}>Docs</a>
+                            {NAV_LINKS.map((link) => (
+                                <Link
+                                    key={link.label}
+                                    className="text-sm font-semibold tracking-[-0.02em] text-[var(--ink-muted)] transition-colors hover:text-[var(--brand)]"
+                                    href={link.href}
+                                    style={{ fontFamily: "var(--font-mono)" }}
+                                >
+                                    {link.label}
+                                </Link>
+                            ))}
+
+                            <div className="group/skill relative">
+                                <button
+                                    type="button"
+                                    className="inline-flex items-center gap-2 text-sm font-semibold tracking-[-0.02em] text-[var(--ink-muted)] transition-colors group-hover/skill:text-[var(--brand)] group-focus-within/skill:text-[var(--brand)]"
+                                    style={{ fontFamily: "var(--font-mono)" }}
+                                >
+                                    <span>Synod Skill</span>
+                                    <svg
+                                        aria-hidden="true"
+                                        viewBox="0 0 12 12"
+                                        className="h-3 w-3 text-[var(--brand)] transition-transform duration-200 group-hover/skill:translate-y-px group-focus-within/skill:translate-y-px"
+                                        fill="none"
+                                    >
+                                        <path d="M2 4.25L6 8.25L10 4.25" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                </button>
+
+                                <div className="pointer-events-none absolute left-0 top-full z-50 pt-3 opacity-0 transition-all duration-200 group-hover/skill:pointer-events-auto group-hover/skill:opacity-100 group-focus-within/skill:pointer-events-auto group-focus-within/skill:opacity-100">
+                                    <div className="min-w-[15rem] rounded-[1.5rem] border border-[var(--line)] bg-[var(--bg-surface)]/95 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+                                        {SKILL_LINKS.map((link) => (
+                                            <a
+                                                key={link.label}
+                                                href={link.href}
+                                                download={link.download ? "synod.md" : undefined}
+                                                className="block rounded-2xl px-4 py-3 text-sm font-semibold tracking-[-0.02em] text-[var(--ink-muted)] transition-colors hover:bg-white/5 hover:text-[var(--brand)]"
+                                                style={{ fontFamily: "var(--font-mono)" }}
+                                            >
+                                                {link.label}
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
                         </nav>
 
-                        {/* ── CTA + Mobile Toggle ── */}
                         <div className="flex items-center gap-2 sm:gap-3">
-                            <Link className="group inline-flex items-center gap-2.5" href="#">
+                            <Link className="group inline-flex items-center gap-2.5" href="/login">
                                 <span
-                                    className="hidden text-base font-semibold tracking-[-0.03em] transition-colors sm:inline text-[var(--ink)]"
+                                    className="hidden text-base font-semibold tracking-[-0.03em] text-[var(--ink)] transition-colors sm:inline"
                                     style={{ fontFamily: "var(--font-mono)" }}
                                 >
                                     Get started
@@ -77,13 +152,19 @@ export default function Header() {
                                 </span>
                             </Link>
 
-                            {/* ── Mobile hamburger ── */}
                             <button
                                 type="button"
                                 aria-label="Open navigation"
                                 aria-expanded={mobileOpen}
-                                onClick={() => setMobileOpen(!mobileOpen)}
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors lg:hidden bg-white/5 text-[var(--ink)] hover:bg-white/10"
+                                onClick={() => {
+                                    if (mobileOpen) {
+                                        closeMobileMenus();
+                                        return;
+                                    }
+
+                                    setMobileOpen(true);
+                                }}
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-[var(--ink)] transition-colors hover:bg-white/10 lg:hidden"
                             >
                                 <svg aria-hidden="true" viewBox="0 0 18 18" className="h-4 w-4" fill="none">
                                     {mobileOpen ? (
@@ -103,18 +184,59 @@ export default function Header() {
                         </div>
                     </div>
 
-                    {/* ── Mobile Menu ── */}
                     <div
-                        className={`overflow-hidden transition-all duration-300 ease-out lg:hidden ${mobileOpen ? "max-h-[30rem] mt-4 opacity-100" : "max-h-0 opacity-0"
+                        className={`overflow-hidden transition-all duration-300 ease-out lg:hidden ${mobileOpen ? "mt-4 max-h-[30rem] opacity-100" : "max-h-0 opacity-0"
                             }`}
                     >
-                        <nav aria-label="Mobile primary" className="rounded-[1.5rem] border px-4 py-4 border-[var(--line)] bg-[var(--bg-surface)]/90 backdrop-blur-xl">
+                        <nav aria-label="Mobile primary" className="rounded-[1.5rem] border border-[var(--line)] bg-[var(--bg-surface)]/90 px-4 py-4 backdrop-blur-xl">
                             <div className="flex flex-col gap-1">
-                                <a className="rounded-2xl px-3 py-3 text-sm font-semibold tracking-[-0.02em] transition-colors text-[var(--ink-muted)] hover:bg-white/5 hover:text-[var(--brand)]" href="#overview" onClick={() => setMobileOpen(false)} style={{ fontFamily: "var(--font-mono)" }}>Overview</a>
-                                <a className="rounded-2xl px-3 py-3 text-sm font-semibold tracking-[-0.02em] transition-colors text-[var(--ink-muted)] hover:bg-white/5 hover:text-[var(--brand)]" href="#why-synod" onClick={() => setMobileOpen(false)} style={{ fontFamily: "var(--font-mono)" }}>Why Synod</a>
-                                <a className="rounded-2xl px-3 py-3 text-sm font-semibold tracking-[-0.02em] transition-colors text-[var(--ink-muted)] hover:bg-white/5 hover:text-[var(--brand)]" href="#how-it-works" onClick={() => setMobileOpen(false)} style={{ fontFamily: "var(--font-mono)" }}>How it works</a>
+                                {NAV_LINKS.map((link) => (
+                                    <Link
+                                        key={link.label}
+                                        className="rounded-2xl px-3 py-3 text-sm font-semibold tracking-[-0.02em] text-[var(--ink-muted)] transition-colors hover:bg-white/5 hover:text-[var(--brand)]"
+                                        href={link.href}
+                                        onClick={closeMobileMenus}
+                                        style={{ fontFamily: "var(--font-mono)" }}
+                                    >
+                                        {link.label}
+                                    </Link>
+                                ))}
 
-                                <a className="rounded-2xl px-3 py-3 text-sm font-semibold tracking-[-0.02em] transition-colors text-[var(--ink-muted)] hover:bg-white/5 hover:text-[var(--brand)]" href="#" onClick={() => setMobileOpen(false)} style={{ fontFamily: "var(--font-mono)" }}>Docs</a>
+                                <div className="rounded-2xl border border-white/5 bg-white/[0.02]">
+                                    <button
+                                        type="button"
+                                        className="flex w-full items-center justify-between px-3 py-3 text-left text-sm font-semibold tracking-[-0.02em] text-[var(--brand)]"
+                                        onClick={() => setMobileSkillOpen((current) => !current)}
+                                        style={{ fontFamily: "var(--font-mono)" }}
+                                    >
+                                        <span>Synod Skill</span>
+                                        <svg
+                                            aria-hidden="true"
+                                            viewBox="0 0 12 12"
+                                            className={`h-3 w-3 transition-transform duration-200 ${mobileSkillOpen ? "rotate-180" : ""}`}
+                                            fill="none"
+                                        >
+                                            <path d="M2 4.25L6 8.25L10 4.25" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                    </button>
+
+                                    <div className={`grid transition-all duration-200 ${mobileSkillOpen ? "grid-rows-[1fr] pb-2" : "grid-rows-[0fr]"}`}>
+                                        <div className="overflow-hidden">
+                                            {SKILL_LINKS.map((link) => (
+                                                <a
+                                                    key={link.label}
+                                                    href={link.href}
+                                                    download={link.download ? "synod.md" : undefined}
+                                                    className="block rounded-2xl px-3 py-3 text-sm font-semibold tracking-[-0.02em] text-[var(--ink-muted)] transition-colors hover:bg-white/5 hover:text-[var(--brand)]"
+                                                    onClick={closeMobileMenus}
+                                                    style={{ fontFamily: "var(--font-mono)" }}
+                                                >
+                                                    {link.label}
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </nav>
                     </div>

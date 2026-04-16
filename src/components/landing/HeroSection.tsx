@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useAnimation } from "framer-motion";
+import Link from "next/link";
 import { useEffect } from "react";
 import DotGrid from "./DotGrid";
 import AnimatedWordTicker from "./AnimatedWordTicker";
@@ -71,22 +72,22 @@ export default function HeroSection() {
                             className="mt-8 flex flex-row flex-wrap items-center gap-3"
                         >
                             {/* Primary CTA */}
-                            <a
+                            <Link
                                 className="inline-flex items-center justify-center rounded-full px-5 py-3 sm:px-7 sm:py-3.5 text-sm font-semibold tracking-[-0.02em] transition-colors duration-200 bg-[var(--brand)] text-[var(--bg-base)] hover:bg-[var(--accent)]"
-                                href="#"
+                                href="/login"
                                 style={{ fontFamily: "var(--font-mono)" }}
                             >
                                 Get started
-                            </a>
+                            </Link>
 
                             {/* Ghost CTA */}
-                            <a
+                            <Link
                                 className="inline-flex items-center justify-center rounded-full px-5 py-3 sm:px-7 sm:py-3.5 text-sm font-semibold tracking-[-0.02em] transition-colors duration-200 border border-[var(--line)] bg-white/5 text-[var(--ink)] hover:bg-white/10"
-                                href="#"
+                                href="/docs"
                                 style={{ fontFamily: "var(--font-mono)" }}
                             >
                                 View docs
-                            </a>
+                            </Link>
                         </motion.div>
                     </motion.div>
                 </div>
