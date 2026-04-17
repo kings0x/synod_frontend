@@ -10,6 +10,7 @@ import { WalletConnect } from "@/components/dashboard/wallet-connect";
 import { WalletCard } from "@/components/dashboard/wallet-card";
 import { AgentManager, type AgentSlot } from "@/components/dashboard/agent-manager";
 import { PolicyManager } from "@/components/dashboard/policy-manager";
+import { ActivityLog } from "@/components/dashboard/activity-log";
 import { apiFetch } from "@/lib/api";
 
 interface Wallet {
@@ -63,7 +64,7 @@ interface KPICardProps {
 
 export default function DashboardPage() {
   const { token, loading: authLoading, user, authError, refreshSession } = useAuth();
-  const { events } = useSocket(token);
+  const { events, status: socketStatus } = useSocket(token);
   const [state, setState] = useState<TreasuryState | null>(null);
   const [loading, setLoading] = useState(true);
   const [noTreasury, setNoTreasury] = useState(false);
@@ -76,6 +77,9 @@ export default function DashboardPage() {
 
   const totalAum = Object.values(walletBalances).reduce((sum, value) => sum + value, 0);
   const displayAum = totalAum > 0 ? totalAum : state?.current_aum_usd || 0;
+  const liveAgents = agentsData.filter(
+    (agent) => agent.status === "ACTIVE" && Boolean(agent.last_connected),
+  ).length;
 
   const fetchAgents = useCallback(
     async (treasuryId: string) => {
@@ -422,8 +426,8 @@ export default function DashboardPage() {
                   />
                   <KPICard
                     label="Agents Active"
-                    value={`${agentsData.filter((agent) => agent.status === "ACTIVE").length} / ${agentsData.length}`}
-                    change={`${agentsData.filter((agent) => agent.status !== "ACTIVE").length} inactive`}
+                    value={`${liveAgents} / ${agentsData.length}`}
+                    change={`${agentsData.length - liveAgents} not live`}
                     trend="neutral"
                   />
                 </div>
@@ -495,6 +499,7 @@ export default function DashboardPage() {
                 treasuryId={state.treasury_id}
                 token={token}
                 wallets={state.wallets}
+                walletBalances={walletBalances}
                 agents={agentsData}
                 treasuryHealth={state.health}
                 focusAgentId={policyFocusAgentId}
@@ -503,9 +508,17 @@ export default function DashboardPage() {
               />
             ) : null}
 
-            {activeTab === "permits" ||
-            activeTab === "activity" ||
-            activeTab === "settings" ? (
+            {activeTab === "activity" ? (
+              <ActivityLog
+                treasuryId={state.treasury_id}
+                network={state.network}
+                wallets={state.wallets}
+                events={events}
+                socketStatus={socketStatus}
+              />
+            ) : null}
+
+            {activeTab === "permits" || activeTab === "settings" ? (
               <div className="space-y-4 rounded-md border border-dashed border-synod-border bg-synod-card py-20 text-center">
                 <div className="text-sm font-bold uppercase tracking-widest text-white">
                   Section Initialization Required

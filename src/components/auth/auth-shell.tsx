@@ -14,24 +14,29 @@ const copyByMode: Record<
   AuthMode,
   {
     subtitle: string;
-    googleLabel: string;
     submitIdle: string;
     submitLoading: string;
   }
 > = {
   signin: {
     subtitle: "Sign in to create your governance identity",
-    googleLabel: "Sign in with Google",
     submitIdle: "Sign In",
     submitLoading: "Signing In...",
   },
   signup: {
     subtitle: "Sign in to create your governance identity",
-    googleLabel: "Sign up with Google",
     submitIdle: "Sign Up",
     submitLoading: "Creating Identity...",
   },
 };
+
+function getAuthErrorMessage(status: number, fallback: string) {
+  if (status === 404 || status === 502 || status === 503 || status === 504) {
+    return "Coordinator API is unreachable on this deployment. Set `SYNOD_COORDINATOR_ORIGIN` to the live synod-coordinator URL and redeploy.";
+  }
+
+  return fallback;
+}
 
 export function AuthShell({ initialMode }: AuthShellProps) {
   const pathname = usePathname();
@@ -79,13 +84,20 @@ export function AuthShell({ initialMode }: AuthShellProps) {
         const data = (await response.json().catch(() => null)) as
           | { message?: string }
           | null;
-        throw new Error(data?.message || "Unable to sign in right now.");
+        throw new Error(
+          data?.message ||
+            getAuthErrorMessage(response.status, "Unable to sign in right now."),
+        );
       }
 
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to sign in right now. Check the coordinator deployment and try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -114,13 +126,20 @@ export function AuthShell({ initialMode }: AuthShellProps) {
         const data = (await response.json().catch(() => null)) as
           | { message?: string }
           | null;
-        throw new Error(data?.message || "Registration failed.");
+        throw new Error(
+          data?.message ||
+            getAuthErrorMessage(response.status, "Unable to create your account right now."),
+        );
       }
 
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to create your account right now. Check the coordinator deployment and try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -160,15 +179,6 @@ export function AuthShell({ initialMode }: AuthShellProps) {
           hidden={mode !== "signin"}
         >
           <p className="subtitle">{activeCopy.subtitle}</p>
-
-          <div className="google-btn-wrap">
-            <button type="button" className="google-btn">
-              <GoogleIcon />
-              {activeCopy.googleLabel}
-            </button>
-          </div>
-
-          <div className="divider">Or continue with</div>
 
           <form onSubmit={submitSignin}>
             <div className="field">
@@ -215,15 +225,6 @@ export function AuthShell({ initialMode }: AuthShellProps) {
           hidden={mode !== "signup"}
         >
           <p className="subtitle">{copyByMode.signup.subtitle}</p>
-
-          <div className="google-btn-wrap">
-            <button type="button" className="google-btn">
-              <GoogleIcon />
-              {copyByMode.signup.googleLabel}
-            </button>
-          </div>
-
-          <div className="divider">Or continue with</div>
 
           <form onSubmit={submitSignup}>
             <div className="field">
@@ -350,58 +351,6 @@ export function AuthShell({ initialMode }: AuthShellProps) {
           color: var(--ac-muted);
         }
 
-        .google-btn-wrap {
-          padding: 1.5px;
-          border-radius: calc(var(--ac-radius) + 2px);
-          background: linear-gradient(135deg, #a855f7, #7c3aed, #6366f1, #8b5cf6, #c084fc);
-          margin-bottom: 18px;
-        }
-
-        .google-btn {
-          width: 100%;
-          height: var(--ac-btn-h);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 9px;
-          font-size: 14px;
-          font-weight: 500;
-          background: var(--ac-surface);
-          border: none;
-          border-radius: var(--ac-radius);
-          cursor: pointer;
-          color: var(--ac-fg);
-          transition: background 0.15s;
-        }
-
-        .google-btn:hover:not(:disabled) {
-          background: #1f1f22;
-        }
-
-        .google-icon {
-          width: 18px;
-          height: 18px;
-          display: block;
-          flex-shrink: 0;
-        }
-
-        .divider {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 18px;
-          color: var(--ac-muted);
-          font-size: 12px;
-        }
-
-        .divider::before,
-        .divider::after {
-          content: "";
-          flex: 1;
-          height: 1px;
-          background: var(--ac-border);
-        }
-
         .field {
           margin-bottom: 16px;
         }
@@ -482,39 +431,6 @@ export function AuthShell({ initialMode }: AuthShellProps) {
   );
 }
 
-function GoogleIcon() {
-  return (
-    <svg
-      className="google-icon"
-      width="18"
-      height="18"
-      viewBox="0 0 48 48"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        fill="#EA4335"
-        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-      />
-      <path
-        fill="#4285F4"
-        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-      />
-      <path
-        fill="#34A853"
-        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-      />
-    </svg>
-  );
-}
-
 function ErrorBanner({ message }: { message: string }) {
-  return (
-    <div className="mb-4 rounded-[10px] border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-      {message}
-    </div>
-  );
+  return <p className="mb-4 text-[12px] leading-5 text-[#ff0000]">{message}</p>;
 }

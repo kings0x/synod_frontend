@@ -120,17 +120,26 @@ function formatDate(value: string | null) {
   return date.toLocaleString()
 }
 
-function displayStatus(status: string) {
-  if (status.startsWith("PENDING")) return "PENDING"
-  return status
+function isAgentLive(agent: AgentSlot) {
+  return agent.status === "ACTIVE" && Boolean(agent.last_connected)
 }
 
-function statusClasses(status: string) {
-  if (status === "ACTIVE") return "border-emerald-500/25 bg-emerald-500/10 text-emerald-300"
-  if (status.startsWith("PENDING")) return "border-synod-warning/30 bg-synod-warning/10 text-synod-warning"
-  if (status === "INACTIVE") return "border-zinc-700 bg-zinc-900 text-zinc-300"
-  if (status === "REVOKED") return "border-red-500/25 bg-red-500/10 text-red-300"
-  if (status === "SUSPENDED") return "border-amber-500/25 bg-amber-500/10 text-amber-200"
+function displayStatus(agent: AgentSlot) {
+  if (agent.status.startsWith("PENDING")) return "PENDING"
+  if (agent.status === "ACTIVE" && !agent.last_connected) return "READY"
+  return agent.status
+}
+
+function statusClasses(agent: AgentSlot) {
+  if (agent.status === "ACTIVE" && !agent.last_connected) {
+    return "border-white/10 bg-white/[0.03] text-synod-muted"
+  }
+
+  if (agent.status === "ACTIVE") return "border-emerald-500/25 bg-emerald-500/10 text-emerald-300"
+  if (agent.status.startsWith("PENDING")) return "border-synod-warning/30 bg-synod-warning/10 text-synod-warning"
+  if (agent.status === "INACTIVE") return "border-zinc-700 bg-zinc-900 text-zinc-300"
+  if (agent.status === "REVOKED") return "border-red-500/25 bg-red-500/10 text-red-300"
+  if (agent.status === "SUSPENDED") return "border-amber-500/25 bg-amber-500/10 text-amber-200"
   return "border-sky-500/25 bg-sky-500/10 text-sky-200"
 }
 
@@ -185,16 +194,16 @@ function MiniAgentList({ agents }: { agents: AgentSlot[] }) {
               <div key={agent.agent_id} className="p-4 flex items-center gap-4 hover:bg-white/[0.015] transition-all">
                 <div
                   className={`relative w-2 h-2 rounded-full flex-shrink-0 ${
-                    agent.status === "ACTIVE" ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]" : "bg-synod-warning opacity-60"
+                    isAgentLive(agent) ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]" : "bg-synod-warning opacity-60"
                   }`}
                 >
-                  {agent.status === "ACTIVE" && <div className="absolute inset-0 rounded-full animate-ping bg-white opacity-20" />}
+                  {isAgentLive(agent) && <div className="absolute inset-0 rounded-full animate-ping bg-white opacity-20" />}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-white truncate">{agent.name}</div>
                   <div className="text-[10px] font-mono text-synod-muted-dark truncate mt-0.5">
-                    {buildAgentToken(agent.agent_id)} - {displayStatus(agent.status).toLowerCase()}
+                    {buildAgentToken(agent.agent_id)} - {displayStatus(agent).toLowerCase()}
                   </div>
                 </div>
 
@@ -561,8 +570,8 @@ export function AgentManager({
                                 </div>
                               </td>
                               <td className="px-3 py-3 align-middle">
-                                <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.16em] ${statusClasses(agent.status)}`}>
-                                  {displayStatus(agent.status)}
+                                <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.16em] ${statusClasses(agent)}`}>
+                                  {displayStatus(agent)}
                                 </span>
                               </td>
                               <td className="px-3 py-3 align-middle">
@@ -627,8 +636,8 @@ export function AgentManager({
                     <div className="text-sm font-bold text-white">{selectedAgent.name}</div>
                     <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-synod-muted">Registered agent slot</div>
                   </div>
-                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] ${statusClasses(selectedAgent.status)}`}>
-                    {displayStatus(selectedAgent.status)}
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] ${statusClasses(selectedAgent)}`}>
+                    {displayStatus(selectedAgent)}
                   </span>
                 </div>
 
@@ -895,7 +904,7 @@ export function AgentManager({
                 <div>
                   <div className="text-sm font-bold text-white">{revokeTarget.name}</div>
                   <p className="mt-2 text-sm leading-6 text-synod-muted">
-                    Revoking this slot disconnects the agent, invalidates its runtime session, and removes the enrolled signer identity. Use this only when the slot should be retired.
+                    Revoking this slot disconnects the agent, invalidates its Synod access, clears the stored pubkey binding, and removes coordinator-side wallet access. Any signer already added on-chain must still be removed from the wallet itself.
                   </p>
                 </div>
               </div>

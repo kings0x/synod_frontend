@@ -1,4 +1,8 @@
 const API_BASE = "/v1";
+const PUBLIC_COORDINATOR_ORIGIN =
+  process.env.NEXT_PUBLIC_COORDINATOR_ORIGIN?.trim() ?? "";
+const PUBLIC_COORDINATOR_WS_URL =
+  process.env.NEXT_PUBLIC_COORDINATOR_WS_URL?.trim() ?? "";
 
 function normalizePath(path: string) {
   if (!path) {
@@ -18,20 +22,28 @@ export function apiPath(path: string) {
 
 export function apiFetch(path: string, init?: RequestInit) {
   return fetch(apiPath(path), {
-    credentials: "same-origin",
+    credentials: "include",
     ...init,
   });
 }
 
 export function buildWebSocketUrl(path: string) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const override = process.env.NEXT_PUBLIC_COORDINATOR_WS_URL?.trim();
 
-  if (override) {
-    const url = new URL(override);
+  if (PUBLIC_COORDINATOR_WS_URL) {
+    const url = new URL(PUBLIC_COORDINATOR_WS_URL);
     if (url.pathname === "/" || url.pathname === "") {
       url.pathname = normalizedPath;
     }
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  }
+
+  if (PUBLIC_COORDINATOR_ORIGIN) {
+    const url = new URL(PUBLIC_COORDINATOR_ORIGIN);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.pathname = normalizedPath;
     url.search = "";
     url.hash = "";
     return url.toString();

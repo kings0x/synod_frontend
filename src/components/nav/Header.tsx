@@ -11,14 +11,14 @@ type NavLink = {
 };
 
 const NAV_LINKS: NavLink[] = [
-    { label: "About Synod", href: "#overview" },
-    { label: "Blog", href: "/blog" },
+    { label: "About Synod", href: "https://medium.com/@kingjusticefr/the-ungoverned-machine-why-autonomous-finance-needs-a-policy-layer-and-why-we-are-building-synod-b7669a6f245e" },
+    { label: "Blog", href: "https://medium.com/@kingjusticefr" },
     { label: "Docs", href: "/docs" },
     { label: "Sandbox", href: "/sandbox" },
 ] as const;
 
 const SYNOD_SKILL_INSTALL_COMMAND =
-    "curl -fsSL https://synodai.xyz/synod.md -o /path/to/save/synod.md";
+    "curl -fsSL https://skill.synodai.xyz/synod.md -o /path/to/save/synod.md";
 
 export default function Header() {
     const [scrolled, setScrolled] = useState(() => {
