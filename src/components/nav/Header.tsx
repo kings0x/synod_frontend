@@ -3,14 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { CheckCircle2, Copy } from "lucide-react";
 
 type NavLink = {
     label: string;
     href: string;
-};
-
-type SkillLink = NavLink & {
-    download?: boolean;
 };
 
 const NAV_LINKS: NavLink[] = [
@@ -20,10 +17,8 @@ const NAV_LINKS: NavLink[] = [
     { label: "Sandbox", href: "/sandbox" },
 ] as const;
 
-const SKILL_LINKS: SkillLink[] = [
-    { label: "View synod.md", href: "/synod.md" },
-    { label: "Download synod.md", href: "/synod.md", download: true },
-] as const;
+const SYNOD_SKILL_INSTALL_COMMAND =
+    "curl -fsSL https://synodai.xyz/synod.md -o /path/to/save/synod.md";
 
 export default function Header() {
     const [scrolled, setScrolled] = useState(() => {
@@ -35,12 +30,19 @@ export default function Header() {
     });
     const [mobileOpen, setMobileOpen] = useState(false);
     const [mobileSkillOpen, setMobileSkillOpen] = useState(false);
+    const [skillCopied, setSkillCopied] = useState(false);
     const [visible, setVisible] = useState(true);
     const lastScrollYRef = useRef(0);
 
     const closeMobileMenus = () => {
         setMobileOpen(false);
         setMobileSkillOpen(false);
+    };
+
+    const copySkillCommand = async () => {
+        await navigator.clipboard.writeText(SYNOD_SKILL_INSTALL_COMMAND);
+        setSkillCopied(true);
+        window.setTimeout(() => setSkillCopied(false), 2000);
     };
 
     useEffect(() => {
@@ -99,7 +101,7 @@ export default function Header() {
                             <div className="group/skill relative">
                                 <button
                                     type="button"
-                                    className="inline-flex items-center gap-2 text-sm font-semibold tracking-[-0.02em] text-[var(--ink-muted)] transition-colors group-hover/skill:text-[var(--brand)] group-focus-within/skill:text-[var(--brand)]"
+                                    className="inline-flex items-center gap-2 text-sm font-semibold tracking-[-0.02em] text-[var(--brand)] transition-colors group-hover/skill:text-[var(--accent)] group-focus-within/skill:text-[var(--accent)]"
                                     style={{ fontFamily: "var(--font-mono)" }}
                                 >
                                     <span>Synod Skill</span>
@@ -114,18 +116,28 @@ export default function Header() {
                                 </button>
 
                                 <div className="pointer-events-none absolute left-0 top-full z-50 pt-3 opacity-0 transition-all duration-200 group-hover/skill:pointer-events-auto group-hover/skill:opacity-100 group-focus-within/skill:pointer-events-auto group-focus-within/skill:opacity-100">
-                                    <div className="min-w-[15rem] rounded-[1.5rem] border border-[var(--line)] bg-[var(--bg-surface)]/95 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-                                        {SKILL_LINKS.map((link) => (
-                                            <a
-                                                key={link.label}
-                                                href={link.href}
-                                                download={link.download ? "synod.md" : undefined}
-                                                className="block rounded-2xl px-4 py-3 text-sm font-semibold tracking-[-0.02em] text-[var(--ink-muted)] transition-colors hover:bg-white/5 hover:text-[var(--brand)]"
-                                                style={{ fontFamily: "var(--font-mono)" }}
-                                            >
-                                                {link.label}
-                                            </a>
-                                        ))}
+                                    <div className="w-[min(22.5rem,calc(100vw-3rem))] rounded-[1.35rem] border border-[rgba(167,139,250,0.18)] bg-[#24242b] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.46)]">
+                                        <div className="space-y-4">
+                                            <div className="text-[1.08rem] font-bold tracking-tight text-white">
+                                                Install the Synod Skill
+                                            </div>
+
+                                            <div className="flex items-center gap-3 rounded-[1.1rem] border border-white/8 bg-[#2d2d35] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                                                <pre className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-[0.76rem] leading-5 tracking-[-0.02em] text-white">{SYNOD_SKILL_INSTALL_COMMAND}</pre>
+                                                <button
+                                                    type="button"
+                                                    onClick={copySkillCommand}
+                                                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] border border-white/12 bg-white/[0.06] text-[var(--brand)] transition-colors hover:bg-white/[0.1]"
+                                                    title="Copy install command"
+                                                >
+                                                    {skillCopied ? <CheckCircle2 size={18} /> : <Copy size={18} />}
+                                                </button>
+                                            </div>
+
+                                            <p className="max-w-[18rem] text-[0.73rem] leading-5 text-[var(--ink-muted)]">
+                                                Compatible with Claude Code, Codex, Cursor, Openclaw, and more.
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -222,18 +234,27 @@ export default function Header() {
 
                                     <div className={`grid transition-all duration-200 ${mobileSkillOpen ? "grid-rows-[1fr] pb-2" : "grid-rows-[0fr]"}`}>
                                         <div className="overflow-hidden">
-                                            {SKILL_LINKS.map((link) => (
-                                                <a
-                                                    key={link.label}
-                                                    href={link.href}
-                                                    download={link.download ? "synod.md" : undefined}
-                                                    className="block rounded-2xl px-3 py-3 text-sm font-semibold tracking-[-0.02em] text-[var(--ink-muted)] transition-colors hover:bg-white/5 hover:text-[var(--brand)]"
-                                                    onClick={closeMobileMenus}
-                                                    style={{ fontFamily: "var(--font-mono)" }}
-                                                >
-                                                    {link.label}
-                                                </a>
-                                            ))}
+                                            <div className="space-y-4 px-3 pb-3">
+                                                <div className="pt-1 text-base font-semibold tracking-[-0.02em] text-white">
+                                                    Install the Synod Skill
+                                                </div>
+
+                                                <div className="flex items-center gap-3 rounded-[1.25rem] border border-white/8 bg-white/[0.05] px-4 py-4">
+                                                    <pre className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-[0.82rem] leading-6 text-white">{SYNOD_SKILL_INSTALL_COMMAND}</pre>
+                                                    <button
+                                                        type="button"
+                                                        onClick={copySkillCommand}
+                                                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/12 bg-white/[0.06] text-[var(--brand)] transition-colors hover:bg-white/[0.1]"
+                                                        title="Copy install command"
+                                                    >
+                                                        {skillCopied ? <CheckCircle2 size={18} /> : <Copy size={18} />}
+                                                    </button>
+                                                </div>
+
+                                                <p className="text-xs leading-6 text-[var(--ink-muted)]">
+                                                    Compatible with Claude Code, Codex, Cursor, Openclaw, and more.
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

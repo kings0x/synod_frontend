@@ -28,7 +28,7 @@ interface AgentManagerProps {
 type ProvisionResult = { agent: AgentSlot }
 type ProvisionStep = "name" | "connect"
 type SdkTab = "python" | "nodejs" | "rust"
-type CopyTarget = "agent_id" | "agent_pubkey" | null
+type CopyTarget = "agent_pubkey" | "skill_link" | "skill_install" | null
 type SnippetTone = "comment" | "command" | "env" | "keyword" | "call" | "string" | "number" | "plain"
 
 type SnippetLine = {
@@ -87,6 +87,10 @@ const SDK_SNIPPETS: Record<SdkTab, { language: string; lines: SnippetLine[] }> =
     ],
   },
 }
+
+const SYNOD_SKILL_URL = "https://synodai.xyz/synod.md"
+const SYNOD_SKILL_INSTALL_COMMAND =
+  "curl -fsSL https://synodai.xyz/synod.md -o /path/to/save/synod.md"
 
 function formatRelativeTime(value: string | null) {
   if (!value) return "Never connected"
@@ -440,13 +444,58 @@ export function AgentManager({
       <div className="space-y-6">
         <div className="flex justify-end">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 border border-synod-border bg-white/[0.02] px-4 text-[10px] font-bold uppercase tracking-[0.18em] text-synod-muted hover:border-synod-border-strong hover:text-white"
-            >
-              Docs
-            </Button>
+            <div className="group/skill relative">
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-[rgba(167,139,250,0.28)] bg-[rgba(167,139,250,0.08)] px-4 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--brand)] transition-all duration-200 hover:border-[rgba(167,139,250,0.48)] hover:bg-[rgba(167,139,250,0.14)]"
+              >
+                <span>Synod Skill</span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 12 12"
+                  className="h-3 w-3 text-[var(--brand)] transition-transform duration-200 group-hover/skill:translate-y-px"
+                  fill="none"
+                >
+                  <path
+                    d="M2 4.25L6 8.25L10 4.25"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+
+              <div className="pointer-events-none absolute right-0 top-full z-50 pt-3 opacity-0 transition-all duration-200 group-hover/skill:pointer-events-auto group-hover/skill:opacity-100 group-focus-within/skill:pointer-events-auto group-focus-within/skill:opacity-100">
+                <div className="w-[min(29rem,calc(100vw-3rem))] rounded-[1.75rem] border border-[rgba(167,139,250,0.2)] bg-[radial-gradient(circle_at_top_left,rgba(167,139,250,0.18),rgba(20,19,26,0.97)_42%,rgba(10,10,11,0.99)_100%)] p-5 shadow-[0_28px_80px_rgba(0,0,0,0.52)] backdrop-blur-xl">
+                  <div className="space-y-5">
+                    <h3 className="text-[1.6rem] font-bold tracking-tight text-white">
+                      Install the Synod Skill
+                    </h3>
+
+                    <div className="flex items-center gap-4 rounded-[1.4rem] border border-white/8 bg-white/[0.05] px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                      <pre className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-[0.97rem] leading-8 tracking-[-0.02em] text-white">{SYNOD_SKILL_INSTALL_COMMAND}</pre>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(SYNOD_SKILL_INSTALL_COMMAND, "skill_install")}
+                        className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] text-[var(--brand)] transition-colors hover:bg-white/[0.1]"
+                        title="Copy install command"
+                      >
+                        {copiedTarget === "skill_install" ? (
+                          <CheckCircle2 size={24} />
+                        ) : (
+                          <Copy size={24} />
+                        )}
+                      </button>
+                    </div>
+
+                    <p className="max-w-[23rem] text-[1rem] leading-8 text-synod-muted">
+                      Compatible with Codex, Cursor, Claude Code, and other agent setups.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
             <Button
               variant="primary"
               size="sm"
@@ -594,7 +643,7 @@ export function AgentManager({
                       </div>
                       <button
                         type="button"
-                        onClick={() => copyToClipboard(selectedAgent.agent_pubkey || "", "agent_id")}
+                        onClick={() => copyToClipboard(selectedAgent.agent_pubkey || "", "agent_pubkey")}
                         className="text-synod-muted hover:text-white transition-colors p-1"
                         title="Copy Agent ID"
                       >
@@ -721,11 +770,11 @@ export function AgentManager({
                         <div className="mt-2">
                           <button
                             type="button"
-                            onClick={() => copyToClipboard("https://synodai.xyz/synod.md", "agent_id")}
+                            onClick={() => copyToClipboard(SYNOD_SKILL_URL, "skill_link")}
                             className="inline-flex items-center rounded-md border border-synod-border bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white transition-colors hover:border-synod-border-strong"
                           >
                             <Copy size={12} className="mr-1.5" />
-                            {copiedTarget === "agent_id" ? "Copied" : "Copy Skill Link"}
+                            {copiedTarget === "skill_link" ? "Copied" : "Copy Skill Link"}
                           </button>
                         </div>
                       </div>
