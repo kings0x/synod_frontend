@@ -302,7 +302,7 @@ export default function DashboardPage() {
               Retry Session Check
             </button>
             <a
-              href="/login"
+              href="/signin"
               className="inline-flex h-12 flex-1 items-center justify-center rounded-md border border-synod-border px-4 text-[11px] font-bold uppercase tracking-[0.18em] text-white transition-colors hover:bg-white/5"
             >
               Open Login

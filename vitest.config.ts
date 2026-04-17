@@ -12,5 +12,7 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     maxWorkers: 1,
     minWorkers: 1,
+    include: ["src/**/*.test.{ts,tsx}"],
+    exclude: ["e2e/**", "test-results/**", ".playwright/**"],
   },
 })

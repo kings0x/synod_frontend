@@ -39,7 +39,7 @@ export function useAuth() {
       setUserId(null);
 
       if (response.status === 401 || response.status === 403) {
-        router.replace("/login");
+        router.replace("/signin");
         return;
       }
 
@@ -63,7 +63,7 @@ export function useAuth() {
     });
     setToken(null);
     setUserId(null);
-    router.push("/login");
+    router.push("/signin");
   }, [router]);
 
   const user = useMemo(

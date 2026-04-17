@@ -151,7 +151,7 @@ export async function startRuntimeProcesses() {
           SYNOD_COORDINATOR_ORIGIN: COORDINATOR_URL,
         },
       },
-      `${FRONTEND_URL}/login`,
+      `${FRONTEND_URL}/signin`,
     )
     processes.push(frontend)
 

@@ -55,10 +55,14 @@ test("operator UI and MCP server complete the slot registration and connect flow
     await test.step("sign up through the frontend and provision a treasury", async () => {
       await page.goto("/signup")
 
-      await page.getByPlaceholder("admin@synod.xyz").fill(email)
-      await page.getByPlaceholder("********").first().fill(password)
-      await page.getByPlaceholder("********").nth(1).fill(password)
-      await page.getByRole("button", { name: /create identity/i }).click()
+      await expect(page.getByRole("tab", { name: /sign up/i })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      )
+      await page.getByLabel("Email").fill(email)
+      await page.getByLabel("Password", { exact: true }).fill(password)
+      await page.getByLabel("Confirm Password").fill(password)
+      await page.getByRole("button", { name: /^sign up$/i }).click()
 
       await expect(page.getByText(/system initialization/i)).toBeVisible()
       await page.getByRole("button", { name: /provision primary treasury/i }).click()

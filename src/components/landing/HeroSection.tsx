@@ -74,7 +74,7 @@ export default function HeroSection() {
                             {/* Primary CTA */}
                             <Link
                                 className="inline-flex items-center justify-center rounded-full px-5 py-3 sm:px-7 sm:py-3.5 text-sm font-semibold tracking-[-0.02em] transition-colors duration-200 bg-[var(--brand)] text-[var(--bg-base)] hover:bg-[var(--accent)]"
-                                href="/login"
+                                href="/signin"
                                 style={{ fontFamily: "var(--font-mono)" }}
                             >
                                 Get started

@@ -132,7 +132,7 @@ export default function Header() {
                         </nav>
 
                         <div className="flex items-center gap-2 sm:gap-3">
-                            <Link className="group inline-flex items-center gap-2.5" href="/login">
+                            <Link className="group inline-flex items-center gap-2.5" href="/signin">
                                 <span
                                     className="hidden text-base font-semibold tracking-[-0.03em] text-[var(--ink)] transition-colors sm:inline"
                                     style={{ fontFamily: "var(--font-mono)" }}

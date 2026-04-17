@@ -11,7 +11,7 @@ export function proxy(request: NextRequest) {
 
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
     if (!hasSession) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL("/signin", request.url));
     }
   }
 
