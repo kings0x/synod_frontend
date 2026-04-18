@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useStellarWallet } from "@/hooks/use-stellar-wallet"
 import { CheckCircle2, Loader2, X, Plus, ArrowUpRight } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit'
 import { Horizon, TransactionBuilder, Networks, Operation } from '@stellar/stellar-sdk'
 
@@ -81,8 +82,9 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
 
       // 2. Verification check
       setStatusText("Analyzing authentication state...")
-      const checkRes = await fetch("/v1/wallets/check-verified", {
+      const checkRes = await apiFetch("/wallets/check-verified", {
         method: "POST",
+        token,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wallet_address: addr }),
       })
@@ -96,8 +98,9 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
       if (!isVerified) {
         setStep('verify')
         setStatusText("Requesting challenge nonce...")
-        const nRes = await fetch("/v1/wallets/nonce", {
+        const nRes = await apiFetch("/wallets/nonce", {
           method: "POST",
+          token,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ wallet_address: addr }),
         })
@@ -110,8 +113,9 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
         }
 
         setStatusText("Verifying ownership with Synod...")
-        const verifyRes = await fetch("/v1/wallets/verify-ownership", {
+        const verifyRes = await apiFetch("/wallets/verify-ownership", {
           method: "POST",
+          token,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ wallet_address: addr, signature, nonce: nData.nonce }),
         })
@@ -119,8 +123,9 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
       }
 
       // Always ensure linked to this treasury (idempotent on backend)
-      await fetch(`/v1/treasuries/${treasuryId}/wallets`, {
+      await apiFetch(`/treasuries/${treasuryId}/wallets`, {
         method: "POST",
+        token,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wallet_address: addr, label: "Managed Wallet" }),
       })
@@ -129,8 +134,8 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
       setStep('multisig')
 
       console.log("Fetching multisig setup for treasury", treasuryId);
-      const setupRes = await fetch(`/v1/multisig/${treasuryId}/setup`, {
-        headers: {  }
+      const setupRes = await apiFetch(`/multisig/${treasuryId}/setup`, {
+        token,
       })
       if (!setupRes.ok) throw new Error("Failed to fetch multisig setup")
       const { coordinator_pubkey } = await setupRes.json()
@@ -180,8 +185,11 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
       }
 
       setStatusText("Confirming with Synod...")
-      const confirmRes = await fetch(`/v1/multisig/${treasuryId}/confirm`, {
+      const confirmRes = await apiFetch(`/multisig/${treasuryId}/confirm`, {
         method: 'POST',
+        token,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet_address: addr }),
       })
       if (!confirmRes.ok) throw new Error("Confirmation failed")
 

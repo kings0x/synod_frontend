@@ -6,6 +6,7 @@ import { Horizon, Networks, Operation, TransactionBuilder } from "@stellar/stell
 import { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { apiFetch } from "@/lib/api";
 import type { AgentSlot } from "@/components/dashboard/agent-manager";
 
 interface WalletSummary {
@@ -101,6 +102,10 @@ const POLICY_MEMO_KIND = "synod-policy-meta/v1";
 function truncateMiddle(value: string, left = 6, right = 4) {
   if (value.length <= left + right + 3) return value;
   return `${value.slice(0, left)}...${value.slice(-right)}`;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function formatDate(value: string | null) {
@@ -302,8 +307,9 @@ export function PolicyManager({
       setError("");
 
       try {
-        const res = await fetch(`/v1/treasuries/${treasuryId}/constitution`, {
+        const res = await apiFetch(`/treasuries/${treasuryId}/constitution`, {
           cache: "no-store",
+          token,
         });
 
         if (!res.ok) {
@@ -427,8 +433,9 @@ export function PolicyManager({
     if (!token) return agentRows;
 
     try {
-      const res = await fetch(`/v1/agents/${treasuryId}`, {
+      const res = await apiFetch(`/agents/${treasuryId}`, {
         cache: "no-store",
+        token,
       });
 
       if (!res.ok) {
@@ -452,8 +459,9 @@ export function PolicyManager({
     setNotice("");
 
     try {
-      const res = await fetch(`/v1/treasuries/${treasuryId}/constitution`, {
+      const res = await apiFetch(`/treasuries/${treasuryId}/constitution`, {
         method: "PUT",
+        token,
         headers: {
           "Content-Type": "application/json",
         },
@@ -495,6 +503,69 @@ export function PolicyManager({
       console.error(err);
       return "unknown";
     }
+  }
+
+  async function waitForAgentCosignerState(
+    walletAddress: string,
+    agentPubkey: string,
+    attempts = 8,
+    delayMs = 1200,
+  ): Promise<Extract<ApprovalState, "approved" | "missing" | "unknown">> {
+    let lastState: Extract<ApprovalState, "approved" | "missing" | "unknown"> = "unknown";
+
+    for (let index = 0; index < attempts; index += 1) {
+      lastState = await readAgentCosignerState(walletAddress, agentPubkey);
+      if (lastState === "approved") {
+        return lastState;
+      }
+
+      if (index < attempts - 1) {
+        await sleep(delayMs);
+      }
+    }
+
+    return lastState;
+  }
+
+  async function finalizeSignerApprovalWithCoordinator(
+    walletAddress: string,
+    signedTxXdr: string,
+  ) {
+    if (!token) {
+      throw new Error("Synod needs an authenticated session to finalize this multisig signer update.");
+    }
+
+    updateWalletDraft(walletAddress, (current) => ({
+      ...current,
+      approvalMessage: "Finalizing signer with Synod Security...",
+    }));
+
+    const res = await apiFetch(`/multisig/${treasuryId}/approve-signer`, {
+      method: "POST",
+      token,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        xdr: signedTxXdr,
+        wallet_address: walletAddress,
+      }),
+    });
+
+    if (!res.ok) {
+      const errData = (await res.json().catch(() => ({}))) as { message?: string };
+      throw new Error(errData.message || "Failed to finalize co-signer approval with Synod.");
+    }
+  }
+
+  async function submitSignerApprovalDirectly(walletAddress: string, signedTxXdr: string) {
+    updateWalletDraft(walletAddress, (current) => ({
+      ...current,
+      approvalMessage: "Submitting signer approval to Stellar...",
+    }));
+
+    const signedTx = TransactionBuilder.fromXDR(signedTxXdr, Networks.TESTNET);
+    await horizon.submitTransaction(signedTx);
   }
 
   function getWalletBalance(walletAddress: string) {
@@ -762,21 +833,63 @@ export function PolicyManager({
         throw new Error("Wallet signing rejected");
       }
 
-      updateWalletDraft(walletAddress, (current) => ({
-        ...current,
-        approvalMessage: "Submitting signer approval to Stellar...",
-      }));
+      if (
+        "signerAddress" in signed &&
+        typeof signed.signerAddress === "string" &&
+        signed.signerAddress !== walletAddress
+      ) {
+        throw new Error(
+          `Wallet signed with ${truncateMiddle(signed.signerAddress, 8, 4)} instead of ${truncateMiddle(walletAddress, 8, 4)}.`,
+        );
+      }
 
-      const signedTx = TransactionBuilder.fromXDR(signed.signedTxXdr, Networks.TESTNET);
-      await horizon.submitTransaction(signedTx);
+      const masterWeight =
+        source.signers.find((signer) => signer.key === walletAddress)?.weight ?? 1;
+      const thresholdNeedsCosign =
+        source.thresholds.med_threshold > masterWeight ||
+        source.thresholds.high_threshold > masterWeight;
+      const shouldUseCoordinator = wallet.multisig_active && thresholdNeedsCosign;
 
-      const confirmed = await readAgentCosignerState(
+      let lastSubmissionError: Error | null = null;
+
+      if (shouldUseCoordinator) {
+        try {
+          await finalizeSignerApprovalWithCoordinator(walletAddress, signed.signedTxXdr);
+        } catch (err) {
+          lastSubmissionError =
+            err instanceof Error
+              ? err
+              : new Error("Failed to finalize signer approval with Synod.");
+        }
+      }
+
+      if (!shouldUseCoordinator || lastSubmissionError) {
+        try {
+          await submitSignerApprovalDirectly(walletAddress, signed.signedTxXdr);
+          lastSubmissionError = null;
+        } catch (err) {
+          if (shouldUseCoordinator && lastSubmissionError) {
+            throw lastSubmissionError;
+          }
+
+          if (wallet.multisig_active && token) {
+            await finalizeSignerApprovalWithCoordinator(walletAddress, signed.signedTxXdr);
+            lastSubmissionError = null;
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      const confirmed = await waitForAgentCosignerState(
         walletAddress,
         activeAgent.agent_pubkey!.trim(),
       );
 
       if (confirmed === "missing") {
-        throw new Error("Signer update not confirmed yet. Please try again.");
+        throw new Error(
+          "Signer approval was submitted, but Stellar has not reflected the new signer yet. Please wait a few seconds and try again.",
+        );
       }
 
       updateWalletDraft(walletAddress, (current) => ({
@@ -998,8 +1111,9 @@ export function PolicyManager({
     setError("");
 
     try {
-      const res = await fetch(`/v1/treasuries/${treasuryId}/resume`, {
+      const res = await apiFetch(`/treasuries/${treasuryId}/resume`, {
         method: "POST",
+        token,
       });
 
       if (!res.ok) {

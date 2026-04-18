@@ -154,18 +154,43 @@ function normalizeCoordinatorEvent(event: EventEnvelope): ActivityItem {
         tone: "success",
       };
     case "AGENT_CONNECTED":
-    case "AGENT_ACTIVATED":
       return {
         id: `coord-${event.event_type}-${JSON.stringify(payload)}`,
         source: "coordinator",
-        title: "Agent online",
+        title: "Agent connected",
         detail:
           typeof payload.agent_id === "string"
-            ? `Agent ${truncateMiddle(payload.agent_id, 8, 4)} is connected and active.`
+            ? `Agent ${truncateMiddle(payload.agent_id, 8, 4)} established a live Synod session.`
             : "An agent connected successfully.",
         scope: treasuryLabel,
         timestamp,
         tone: "success",
+      };
+    case "AGENT_ACTIVATED":
+      return {
+        id: `coord-${event.event_type}-${JSON.stringify(payload)}`,
+        source: "coordinator",
+        title: "Agent activated",
+        detail:
+          typeof payload.agent_id === "string"
+            ? `Agent ${truncateMiddle(payload.agent_id, 8, 4)} is fully live on approved wallets.`
+            : "An agent became fully active.",
+        scope: treasuryLabel,
+        timestamp,
+        tone: "success",
+      };
+    case "AGENT_SIGNER_ADDED":
+      return {
+        id: `coord-${event.event_type}-${JSON.stringify(payload)}`,
+        source: "coordinator",
+        title: "Agent signer approved",
+        detail:
+          typeof payload.agent_id === "string"
+            ? `Agent ${truncateMiddle(payload.agent_id, 8, 4)} was added as a signer on a managed wallet.`
+            : "An agent signer was approved on-chain.",
+        scope: treasuryLabel,
+        timestamp,
+        tone: "info",
       };
     case "AGENT_SUSPENDED":
       return {
@@ -187,13 +212,13 @@ function normalizeCoordinatorEvent(event: EventEnvelope): ActivityItem {
         title: "Agent status changed",
         detail:
           typeof payload.agent_id === "string"
-            ? `Agent ${truncateMiddle(payload.agent_id, 8, 4)} changed status.`
+            ? `Agent ${truncateMiddle(payload.agent_id, 8, 4)} changed status to ${String(payload.new_status ?? "updated")}.`
             : "An agent changed state.",
         scope: treasuryLabel,
         timestamp,
         tone: "info",
       };
-    case "CONSTITUTION_UPDATED":
+    case "CONSTITUTION_UPDATE":
       return {
         id: `coord-${event.event_type}-${JSON.stringify(payload)}`,
         source: "coordinator",
@@ -202,6 +227,45 @@ function normalizeCoordinatorEvent(event: EventEnvelope): ActivityItem {
         scope: treasuryLabel,
         timestamp,
         tone: "info",
+      };
+    case "INTENT_CONFIRMED":
+      return {
+        id: `coord-${event.event_type}-${JSON.stringify(payload)}`,
+        source: "coordinator",
+        title: "Intent confirmed",
+        detail:
+          typeof payload.agent_id === "string"
+            ? `Agent ${truncateMiddle(payload.agent_id, 8, 4)} completed a transaction successfully.`
+            : "An agent intent was confirmed.",
+        scope: treasuryLabel,
+        timestamp,
+        tone: "success",
+      };
+    case "INTENT_REJECTED":
+      return {
+        id: `coord-${event.event_type}-${JSON.stringify(payload)}`,
+        source: "coordinator",
+        title: "Intent rejected",
+        detail:
+          typeof payload.reason === "string"
+            ? payload.reason
+            : "Synod policy rejected an agent intent.",
+        scope: treasuryLabel,
+        timestamp,
+        tone: "warning",
+      };
+    case "INTENT_FAILED":
+      return {
+        id: `coord-${event.event_type}-${JSON.stringify(payload)}`,
+        source: "coordinator",
+        title: "Intent failed",
+        detail:
+          typeof payload.reason === "string"
+            ? payload.reason
+            : "An agent intent failed after submission.",
+        scope: treasuryLabel,
+        timestamp,
+        tone: "danger",
       };
     default:
       return {
@@ -311,6 +375,7 @@ export function ActivityLog({
   socketStatus,
 }: ActivityLogProps) {
   const [horizonItems, setHorizonItems] = useState<ActivityItem[]>([]);
+  const [horizonStatus, setHorizonStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const seenIds = useRef<Set<string>>(new Set());
 
   const coordinatorItems = useMemo(() => {
@@ -340,6 +405,10 @@ export function ActivityLog({
         `${horizonOrigin}/accounts/${wallet.wallet_address}/operations?cursor=now&order=asc`,
       );
 
+      source.onopen = () => {
+        setHorizonStatus("connected");
+      };
+
       source.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data) as Record<string, unknown>;
@@ -360,6 +429,10 @@ export function ActivityLog({
         }
       };
 
+      source.onerror = () => {
+        setHorizonStatus("error");
+      };
+
       return source;
     });
 
@@ -367,6 +440,13 @@ export function ActivityLog({
       streams.forEach((stream) => stream.close());
     };
   }, [network, wallets]);
+
+  const displayedHorizonStatus =
+    wallets.length === 0
+      ? "idle"
+      : horizonStatus === "idle"
+        ? "connecting"
+        : horizonStatus;
 
   const coordinatorBadge = useMemo(() => {
     if (socketStatus === "connected") {
@@ -383,6 +463,22 @@ export function ActivityLog({
 
     return "border-white/8 bg-white/[0.03] text-synod-muted";
   }, [socketStatus]);
+
+  const horizonBadge = useMemo(() => {
+    if (displayedHorizonStatus === "connected") {
+      return "border-sky-500/20 bg-sky-500/10 text-sky-100";
+    }
+
+    if (displayedHorizonStatus === "connecting") {
+      return "border-amber-500/20 bg-amber-500/10 text-amber-100";
+    }
+
+    if (displayedHorizonStatus === "error") {
+      return "border-red-500/20 bg-red-500/10 text-red-100";
+    }
+
+    return "border-white/8 bg-white/[0.03] text-synod-muted";
+  }, [displayedHorizonStatus]);
 
   const items = useMemo(() => {
     const merged = [...horizonItems, ...coordinatorItems];
@@ -418,8 +514,8 @@ export function ActivityLog({
           <span className={`rounded-full border px-2.5 py-1 ${coordinatorBadge}`}>
             Coordinator {socketStatus}
           </span>
-          <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-sky-100">
-            Horizon SSE live
+          <span className={`rounded-full border px-2.5 py-1 ${horizonBadge}`}>
+            Horizon SSE {displayedHorizonStatus}
           </span>
         </div>
       </div>

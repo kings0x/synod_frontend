@@ -10,6 +10,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Horizon, TransactionBuilder, Networks, Operation } from "@stellar/stellar-sdk";
+import { apiFetch } from "@/lib/api";
 import { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
 
 interface WalletCardProps {
@@ -117,7 +118,7 @@ export function WalletCard({
 
     try {
       setRevokeStatus("Fetching security context...");
-      const setupRes = await fetch(`/v1/multisig/${treasuryId}/setup`);
+      const setupRes = await apiFetch(`/multisig/${treasuryId}/setup`, { token });
       if (!setupRes.ok) {
         throw new Error("Could not fetch co-signer info");
       }
@@ -146,14 +147,6 @@ export function WalletCard({
         .setTimeout(30)
         .build();
 
-      setRevokeStatus("Verifying session...");
-      const { address: currentActive } = await StellarWalletsKit.fetchAddress();
-      if (currentActive !== wallet.wallet_address) {
-        throw new Error(
-          `Account mismatch: wallet extension is set to ${currentActive.substring(0, 8)}... Switch to ${wallet.wallet_address.substring(0, 8)}...`,
-        );
-      }
-
       const onChainAccount = await horizon.loadAccount(wallet.wallet_address);
       const isCoordinatorSigner = onChainAccount.signers.some(
         (signer: StellarSigner) => signer.key === coordinator_pubkey && signer.weight > 0,
@@ -166,9 +159,22 @@ export function WalletCard({
       const needsCosign = isCoordinatorSigner && highThreshold > masterWeight;
 
       setRevokeStatus("Sign revocation in your wallet...");
-      const result = await StellarWalletsKit.signTransaction(tx.toXDR());
+      const result = await StellarWalletsKit.signTransaction(tx.toXDR(), {
+        networkPassphrase: Networks.TESTNET,
+        address: wallet.wallet_address,
+      });
       if (!result) {
         throw new Error("Revocation signing rejected");
+      }
+
+      if (
+        "signerAddress" in result &&
+        typeof result.signerAddress === "string" &&
+        result.signerAddress !== wallet.wallet_address
+      ) {
+        throw new Error(
+          `Wallet signed with ${result.signerAddress.substring(0, 8)}... instead of ${wallet.wallet_address.substring(0, 8)}...`,
+        );
       }
 
       if (!needsCosign) {
@@ -176,8 +182,9 @@ export function WalletCard({
         const signedTx = TransactionBuilder.fromXDR(result.signedTxXdr, Networks.TESTNET);
         await horizon.submitTransaction(signedTx);
 
-        await fetch(`/v1/multisig/${treasuryId}/revoke`, {
+        await apiFetch(`/multisig/${treasuryId}/revoke`, {
           method: "POST",
+          token,
           headers: {
             "Content-Type": "application/json",
           },
@@ -188,8 +195,9 @@ export function WalletCard({
         });
       } else {
         setRevokeStatus("Finalizing revocation with Synod Security...");
-        const res = await fetch(`/v1/multisig/${treasuryId}/revoke`, {
+        const res = await apiFetch(`/multisig/${treasuryId}/revoke`, {
           method: "POST",
+          token,
           headers: {
             "Content-Type": "application/json",
           },

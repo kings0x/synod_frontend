@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { AlertTriangle, CheckCircle2, Copy, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { apiFetch } from "@/lib/api"
 import { useStellarWallet } from "@/hooks/use-stellar-wallet"
 
 export interface AgentSlot {
@@ -306,8 +307,9 @@ export function AgentManager({
     setModalError("")
 
     try {
-      const res = await fetch(`/v1/agents/${treasuryId}`, {
+      const res = await apiFetch(`/agents/${treasuryId}`, {
         method: "POST",
+        token,
         headers: {
           "Content-Type": "application/json",
         },
@@ -348,8 +350,9 @@ export function AgentManager({
     setModalError("")
 
     try {
-      const res = await fetch(`/v1/agents/${treasuryId}/${revokeTarget.agent_id}/revoke`, {
+      const res = await apiFetch(`/agents/${treasuryId}/${revokeTarget.agent_id}/revoke`, {
         method: "POST",
+        token,
       })
 
       if (!res.ok) {
@@ -383,8 +386,9 @@ export function AgentManager({
       }
 
       setBindingStatus("Requesting enrollment challenge...")
-      const challengeRes = await fetch(`/v1/agents/${selectedAgent.agent_id}/enroll/challenge`, {
+      const challengeRes = await apiFetch(`/agents/${selectedAgent.agent_id}/enroll/challenge`, {
         method: "POST",
+        token,
         headers: {
           "Content-Type": "application/json",
         },
@@ -409,8 +413,9 @@ export function AgentManager({
       }
 
       setBindingStatus("Binding public key to this slot...")
-      const enrollRes = await fetch(`/v1/agents/${selectedAgent.agent_id}/enroll-pubkey`, {
+      const enrollRes = await apiFetch(`/agents/${selectedAgent.agent_id}/enroll-pubkey`, {
         method: "POST",
+        token,
         headers: {
           "Content-Type": "application/json",
         },

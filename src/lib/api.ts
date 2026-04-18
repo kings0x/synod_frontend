@@ -20,10 +20,18 @@ export function apiPath(path: string) {
   return normalizePath(path);
 }
 
-export function apiFetch(path: string, init?: RequestInit) {
+export function apiFetch(path: string, init?: RequestInit & { token?: string | null }) {
+  const { token, ...rest } = init || {};
+  const headers = new Headers(rest.headers);
+
+  if (token && token !== "cookie-auth") {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   return fetch(apiPath(path), {
     credentials: "include",
-    ...init,
+    ...rest,
+    headers,
   });
 }
 
