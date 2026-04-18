@@ -29,6 +29,14 @@ type FlowError = Error & {
   };
 };
 
+const getApiErrorMessage = async (response: Response, fallback: string) => {
+  const body = (await response.json().catch(() => null)) as
+    | { message?: string; error?: string }
+    | null;
+
+  return body?.message || body?.error || fallback;
+};
+
 const getFlowErrorMessage = (err: unknown): string => {
   if (err instanceof Error && err.message) {
     return err.message;
@@ -123,12 +131,15 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
       }
 
       // Always ensure linked to this treasury (idempotent on backend)
-      await apiFetch(`/treasuries/${treasuryId}/wallets`, {
+      const linkRes = await apiFetch(`/treasuries/${treasuryId}/wallets`, {
         method: "POST",
         token,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wallet_address: addr, label: "Managed Wallet" }),
       })
+      if (!linkRes.ok) {
+        throw new Error(await getApiErrorMessage(linkRes, "Failed to link wallet to this treasury"))
+      }
 
       // 3. Multisig
       setStep('multisig')
@@ -137,7 +148,9 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
       const setupRes = await apiFetch(`/multisig/${treasuryId}/setup`, {
         token,
       })
-      if (!setupRes.ok) throw new Error("Failed to fetch multisig setup")
+      if (!setupRes.ok) {
+        throw new Error(await getApiErrorMessage(setupRes, "Failed to fetch multisig setup"))
+      }
       const { coordinator_pubkey } = await setupRes.json()
 
       setStatusText("Analyzing security state on-chain...")
@@ -191,7 +204,9 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wallet_address: addr }),
       })
-      if (!confirmRes.ok) throw new Error("Confirmation failed")
+      if (!confirmRes.ok) {
+        throw new Error(await getApiErrorMessage(confirmRes, "Confirmation failed"))
+      }
 
       setStep('done')
       onSuccess?.()
