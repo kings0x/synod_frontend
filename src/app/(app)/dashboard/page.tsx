@@ -454,6 +454,10 @@ export default function DashboardPage() {
                     treasuryId={state.treasury_id}
                     token={token}
                     wallet={wallet}
+                    onRefresh={() => {
+                      void triggerResync();
+                      void fetchData();
+                    }}
                     onBalanceUpdate={(address, aum) => {
                       setWalletBalances((prev) => ({ ...prev, [address]: aum }));
                       setAumLoaded(true);

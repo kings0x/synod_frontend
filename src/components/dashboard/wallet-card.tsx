@@ -12,6 +12,8 @@ import {
 import { Horizon, TransactionBuilder, Networks, Operation } from "@stellar/stellar-sdk";
 import { apiFetch } from "@/lib/api";
 import { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
+import { useStellarWallet } from "@/hooks/use-stellar-wallet";
+import { isCoordinatorMultisigConfigured, waitForCoordinatorMultisig } from "@/lib/stellar-multisig";
 
 interface WalletCardProps {
   treasuryId: string;
@@ -24,6 +26,7 @@ interface WalletCardProps {
   };
   onDisconnect?: (address: string) => void;
   onBalanceUpdate?: (address: string, aum: number) => void;
+  onRefresh?: () => void;
 }
 
 interface Balance {
@@ -64,13 +67,67 @@ export function WalletCard({
   wallet,
   onDisconnect,
   onBalanceUpdate,
+  onRefresh,
 }: WalletCardProps) {
+  const { connect, disconnect } = useStellarWallet();
   const [balances, setBalances] = useState<Balance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [isCompletingSetup, setIsCompletingSetup] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [revokeStatus, setRevokeStatus] = useState("");
+
+  const clearWalletLocally = () => {
+    try {
+      StellarWalletsKit.disconnect();
+    } catch {}
+
+    try {
+      disconnect();
+    } catch {}
+  };
+
+  const disconnectWalletSession = async () => {
+    if (!token) {
+      return;
+    }
+
+    await apiFetch("/wallets/disconnect", {
+      method: "POST",
+      token,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        wallet_address: wallet.wallet_address,
+      }),
+    }).catch(() => undefined);
+  };
+
+  const unlinkWalletFromTreasury = async () => {
+    if (!token) {
+      throw new Error("Missing Synod session");
+    }
+
+    const unlinkRes = await apiFetch(
+      `/treasuries/${treasuryId}/wallets/${encodeURIComponent(wallet.wallet_address)}`,
+      {
+        method: "POST",
+        token,
+      },
+    );
+
+    if (!unlinkRes.ok) {
+      const errData = (await unlinkRes.json().catch(() => ({}))) as { message?: string };
+      throw new Error(errData.message || "Failed to remove wallet from this treasury.");
+    }
+
+    await disconnectWalletSession();
+    clearWalletLocally();
+    onDisconnect?.(wallet.wallet_address);
+    onRefresh?.();
+  };
 
   useEffect(() => {
     async function fetchBalances() {
@@ -117,6 +174,13 @@ export function WalletCard({
     setError("");
 
     try {
+      if (!wallet.multisig_active) {
+        setRevokeStatus("Removing pending wallet from Synod...");
+        await unlinkWalletFromTreasury();
+        setShowConfirm(false);
+        return;
+      }
+
       setRevokeStatus("Fetching security context...");
       const setupRes = await apiFetch(`/multisig/${treasuryId}/setup`, { token });
       if (!setupRes.ok) {
@@ -126,6 +190,18 @@ export function WalletCard({
       const { coordinator_pubkey } = (await setupRes.json()) as {
         coordinator_pubkey: string;
       };
+
+      setRevokeStatus("Connecting to wallet extension...");
+      const connectedAddress = await connect();
+      if (!connectedAddress) {
+        throw new Error("Wallet connection cancelled");
+      }
+
+      if (connectedAddress !== wallet.wallet_address) {
+        throw new Error(
+          `Wallet extension connected ${connectedAddress.substring(0, 8)}... instead of ${wallet.wallet_address.substring(0, 8)}...`,
+        );
+      }
 
       setRevokeStatus("Building revocation transaction...");
       const account = await horizon.loadAccount(wallet.wallet_address);
@@ -213,11 +289,10 @@ export function WalletCard({
         }
       }
 
-      try {
-        StellarWalletsKit.disconnect();
-      } catch {}
-
+      await disconnectWalletSession();
+      clearWalletLocally();
       onDisconnect?.(wallet.wallet_address);
+      onRefresh?.();
       setShowConfirm(false);
     } catch (disconnectError: unknown) {
       console.error("Revocation failed:", disconnectError);
@@ -225,6 +300,122 @@ export function WalletCard({
     } finally {
       setIsDisconnecting(false);
       setRevokeStatus("");
+    }
+  };
+
+  const handleCompleteSetup = async () => {
+    if (!token) {
+      return;
+    }
+
+    setIsCompletingSetup(true);
+    setError("");
+
+    try {
+      const addr = await connect();
+      if (!addr) {
+        return;
+      }
+
+      if (addr !== wallet.wallet_address) {
+        throw new Error(
+          `Wallet extension connected ${addr.substring(0, 8)}... instead of ${wallet.wallet_address.substring(0, 8)}...`,
+        );
+      }
+
+      const setupRes = await apiFetch(`/multisig/${treasuryId}/setup`, { token });
+      if (!setupRes.ok) {
+        const errData = (await setupRes.json().catch(() => ({}))) as { message?: string };
+        throw new Error(errData.message || "Could not fetch co-signer info");
+      }
+
+      const { coordinator_pubkey } = (await setupRes.json()) as {
+        coordinator_pubkey: string;
+      };
+
+      const account = await horizon.loadAccount(wallet.wallet_address);
+      const multisigState = isCoordinatorMultisigConfigured(
+        account,
+        wallet.wallet_address,
+        coordinator_pubkey,
+      );
+      const hasSigner = multisigState.hasSigner;
+      const hasThresholds = multisigState.hasThresholds;
+
+      if (!hasSigner || !hasThresholds) {
+        const setOptionsObj: Parameters<typeof Operation.setOptions>[0] = {
+          lowThreshold: 1,
+          medThreshold: 21,
+          highThreshold: 21,
+        };
+
+        if (!hasSigner) {
+          setOptionsObj.signer = { ed25519PublicKey: coordinator_pubkey, weight: 20 };
+        }
+
+        const tx = new TransactionBuilder(account, {
+          fee: "1000",
+          networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(Operation.setOptions(setOptionsObj))
+          .setTimeout(30)
+          .build();
+
+        const result = await StellarWalletsKit.signTransaction(tx.toXDR(), {
+          networkPassphrase: Networks.TESTNET,
+          address: wallet.wallet_address,
+        });
+        if (!result) {
+          throw new Error("Transaction signing rejected");
+        }
+        if (
+          "signerAddress" in result &&
+          typeof result.signerAddress === "string" &&
+          result.signerAddress !== wallet.wallet_address
+        ) {
+          throw new Error(
+            `Wallet signed with ${result.signerAddress.substring(0, 8)}... instead of ${wallet.wallet_address.substring(0, 8)}...`,
+          );
+        }
+
+        const signedTx = TransactionBuilder.fromXDR(result.signedTxXdr, Networks.TESTNET);
+        await horizon.submitTransaction(signedTx);
+
+        const confirmation = await waitForCoordinatorMultisig(
+          horizon,
+          wallet.wallet_address,
+          coordinator_pubkey,
+        );
+        if (confirmation.status === "missing") {
+          throw new Error(
+            "Multisig transaction was submitted, but Stellar has not reflected the coordinator signer yet. Please wait a few seconds and try again.",
+          );
+        }
+        if (confirmation.status === "unknown") {
+          throw confirmation.error ?? new Error("Unable to verify multisig state on Stellar.");
+        }
+      }
+
+      const confirmRes = await apiFetch(`/multisig/${treasuryId}/confirm`, {
+        method: "POST",
+        token,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ wallet_address: wallet.wallet_address }),
+      });
+
+      if (!confirmRes.ok) {
+        const errData = (await confirmRes.json().catch(() => ({}))) as { message?: string };
+        throw new Error(errData.message || "Failed to finalize multisig setup.");
+      }
+
+      onRefresh?.();
+    } catch (setupError: unknown) {
+      console.error("Completing multisig setup failed:", setupError);
+      setError(getErrorMessage(setupError, "Failed to complete multisig setup"));
+    } finally {
+      setIsCompletingSetup(false);
     }
   };
 
@@ -330,12 +521,19 @@ export function WalletCard({
           )}
         </div>
         <div className="flex gap-2">
-          <button className="rounded-sm border border-white/5 bg-white/5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-white/10">
-            Details
-          </button>
+          {wallet.multisig_active ? null : (
+            <button
+              onClick={handleCompleteSetup}
+              disabled={isCompletingSetup || isDisconnecting}
+              className="flex items-center gap-2 rounded-sm border border-amber-400/10 bg-amber-400/5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-amber-200 transition-colors hover:bg-amber-400/10 disabled:opacity-60"
+            >
+              {isCompletingSetup ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              {isCompletingSetup ? "Completing..." : "Complete setup"}
+            </button>
+          )}
           <button
             onClick={() => setShowConfirm(true)}
-            disabled={isDisconnecting}
+            disabled={isDisconnecting || isCompletingSetup}
             className="flex items-center gap-2 rounded-sm border border-red-400/10 bg-red-400/5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-red-400/80 transition-colors hover:bg-red-400/10"
           >
             {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Disconnect"}
@@ -353,11 +551,12 @@ export function WalletCard({
 
               <div className="space-y-2">
                 <h4 className="text-sm font-bold uppercase tracking-widest text-white">
-                  Confirm Revocation
+                  {wallet.multisig_active ? "Confirm Revocation" : "Remove Pending Wallet"}
                 </h4>
                 <p className="text-[11px] leading-relaxed text-synod-muted">
-                  This will permanently remove the Synod Coordinator as a co-signer on the
-                  network and unlink the wallet from this treasury.
+                  {wallet.multisig_active
+                    ? "This will permanently remove the Synod Coordinator as a co-signer on the network and unlink the wallet from this treasury."
+                    : "This wallet never completed multisig setup. Synod will unlink it from this treasury and remove the card immediately."}
                 </p>
               </div>
 
@@ -379,7 +578,7 @@ export function WalletCard({
                       {revokeStatus || "PROCESSING..."}
                     </>
                   ) : (
-                    "SIGN & REVOKE ACCESS"
+                    wallet.multisig_active ? "SIGN & REVOKE ACCESS" : "REMOVE WALLET"
                   )}
                 </button>
                 <button
@@ -396,7 +595,9 @@ export function WalletCard({
               </div>
 
               <p className="font-mono text-[9px] uppercase tracking-tighter text-synod-muted-dark">
-                Dual-signature removal will trigger a network transaction.
+                {wallet.multisig_active
+                  ? "Dual-signature removal will trigger a network transaction."
+                  : "Pending wallets can be removed without an on-chain revocation."}
               </p>
             </div>
           </div>

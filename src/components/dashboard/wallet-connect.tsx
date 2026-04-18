@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2, X, Plus, ArrowUpRight } from "lucide-react"
 import { apiFetch } from "@/lib/api"
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit'
 import { Horizon, TransactionBuilder, Networks, Operation } from '@stellar/stellar-sdk'
+import { isCoordinatorMultisigConfigured, waitForCoordinatorMultisig } from "@/lib/stellar-multisig"
 
 type FlowStep = 'connect' | 'verify' | 'multisig' | 'done'
 
@@ -157,10 +158,9 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
       const server = new Horizon.Server("https://horizon-testnet.stellar.org")
       const account = await server.loadAccount(addr)
 
-      // Check if coordinator is already a signer
-      const existingSigner = account.signers.find(s => s.key === coordinator_pubkey)
-      const hasSigner = !!existingSigner && existingSigner.weight >= 20
-      const hasThresholds = account.thresholds.med_threshold >= 21 && account.thresholds.high_threshold >= 21
+      const multisigState = isCoordinatorMultisigConfigured(account, addr, coordinator_pubkey)
+      const hasSigner = multisigState.hasSigner
+      const hasThresholds = multisigState.hasThresholds
 
       if (hasSigner && hasThresholds) {
         setStatusText("Security architecture verified (already active).")
@@ -191,10 +191,30 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
           address: addr,
         })
         if (!result) throw new Error("Transaction signing rejected")
+        if (
+          "signerAddress" in result &&
+          typeof result.signerAddress === "string" &&
+          result.signerAddress !== addr
+        ) {
+          throw new Error(
+            `Wallet signed with ${result.signerAddress.substring(0, 8)}... instead of ${addr.substring(0, 8)}...`,
+          )
+        }
 
         setStatusText("Submitting to network...")
         const signedTx = TransactionBuilder.fromXDR(result.signedTxXdr, Networks.TESTNET)
         await server.submitTransaction(signedTx)
+
+        setStatusText("Verifying multisig state on Stellar...")
+        const confirmation = await waitForCoordinatorMultisig(server, addr, coordinator_pubkey)
+        if (confirmation.status === "missing") {
+          throw new Error(
+            "Multisig transaction was submitted, but Stellar has not reflected the coordinator signer yet. Please wait a few seconds and try again.",
+          )
+        }
+        if (confirmation.status === "unknown") {
+          throw confirmation.error ?? new Error("Unable to verify multisig state on Stellar.")
+        }
       }
 
       setStatusText("Confirming with Synod...")
@@ -246,7 +266,7 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
         <div className="space-y-2">
           <h2 className="text-lg font-bold text-white tracking-tight uppercase">Connect New Wallet</h2>
           <p className="text-[11px] text-synod-muted-dark font-medium leading-relaxed max-w-[220px]">
-            Use WalletConnect to link a Stellar wallet. <br />
+            Use a Stellar wallet to link and secure it. <br />
             Multisig will be established automatically.
           </p>
         </div>
