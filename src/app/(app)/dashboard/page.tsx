@@ -46,11 +46,18 @@ interface DashboardBalancesResponse {
 
 interface EventPayload {
   treasury_id?: string;
+  timestamp?: string;
+  [key: string]: unknown;
 }
 
 interface EventEnvelope {
   event_type: string;
   payload?: EventPayload;
+}
+
+interface DashboardEventRecord extends EventEnvelope {
+  sequence: number;
+  emitted_at: string;
 }
 
 interface KPICardProps {
@@ -65,6 +72,7 @@ interface KPICardProps {
 export default function DashboardPage() {
   const { token, loading: authLoading, user, authError, refreshSession } = useAuth();
   const { events, status: socketStatus } = useSocket(token);
+  const [historyEvents, setHistoryEvents] = useState<DashboardEventRecord[]>([]);
   const [state, setState] = useState<TreasuryState | null>(null);
   const [loading, setLoading] = useState(true);
   const [noTreasury, setNoTreasury] = useState(false);
@@ -132,6 +140,29 @@ export default function DashboardPage() {
     [token],
   );
 
+  const fetchEventHistory = useCallback(
+    async (treasuryId: string) => {
+      if (!token) {
+        return;
+      }
+
+      try {
+        const response = await apiFetch(`/dashboard/${treasuryId}/events?limit=120`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          throw new Error("Failed to fetch dashboard events");
+        }
+
+        const data = (await response.json()) as DashboardEventRecord[];
+        setHistoryEvents(data);
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    [token],
+  );
+
   const fetchTreasuryState = useCallback(
     async (treasuryId: string) => {
       const response = await apiFetch(`/dashboard/${treasuryId}`, {
@@ -166,6 +197,7 @@ export default function DashboardPage() {
         setState(null);
         setWalletBalances({});
         setAgentsData([]);
+        setHistoryEvents([]);
         setAumLoaded(true);
         return;
       }
@@ -175,14 +207,18 @@ export default function DashboardPage() {
       setState(nextState);
       setNoTreasury(false);
 
-      await Promise.all([fetchAgents(treasuryId), fetchTreasuryBalances(treasuryId)]);
+      await Promise.all([
+        fetchAgents(treasuryId),
+        fetchTreasuryBalances(treasuryId),
+        fetchEventHistory(treasuryId),
+      ]);
     } catch (err) {
       console.error(err);
       setLoadError("Unable to load the dashboard while the coordinator is unavailable.");
     } finally {
       setLoading(false);
     }
-  }, [fetchAgents, fetchTreasuryBalances, fetchTreasuryState, token]);
+  }, [fetchAgents, fetchEventHistory, fetchTreasuryBalances, fetchTreasuryState, token]);
 
   useEffect(() => {
     if (!token) {
@@ -223,6 +259,19 @@ export default function DashboardPage() {
         break;
     }
   }, [events, fetchAgents, fetchTreasuryBalances, fetchTreasuryState, state?.treasury_id, token]);
+
+  useEffect(() => {
+    if (!token || !state?.treasury_id) {
+      return;
+    }
+
+    void fetchEventHistory(state.treasury_id);
+    const interval = window.setInterval(() => {
+      void fetchEventHistory(state.treasury_id);
+    }, 10000);
+
+    return () => window.clearInterval(interval);
+  }, [fetchEventHistory, state?.treasury_id, token]);
 
   const triggerResync = useCallback(async () => {
     if (!token || !state) {
@@ -517,6 +566,7 @@ export default function DashboardPage() {
                 treasuryId={state.treasury_id}
                 network={state.network}
                 wallets={state.wallets}
+                historyEvents={historyEvents}
                 events={events}
                 socketStatus={socketStatus}
               />

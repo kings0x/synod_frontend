@@ -48,6 +48,15 @@ export function buildWebSocketUrl(path: string) {
     return url.toString();
   }
 
+  if (typeof window !== "undefined") {
+    const url = new URL(window.location.origin);
+    url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    url.pathname = normalizedPath;
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  }
+
   if (PUBLIC_COORDINATOR_ORIGIN) {
     const url = new URL(PUBLIC_COORDINATOR_ORIGIN);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
@@ -57,16 +66,7 @@ export function buildWebSocketUrl(path: string) {
     return url.toString();
   }
 
-  if (typeof window === "undefined") {
-    return normalizedPath;
-  }
-
-  const url = new URL(window.location.origin);
-  url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = normalizedPath;
-  url.search = "";
-  url.hash = "";
-  return url.toString();
+  return normalizedPath;
 }
 
 export function buildDashboardWebSocketUrl() {

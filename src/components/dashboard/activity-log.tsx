@@ -19,6 +19,7 @@ interface ActivityLogProps {
   treasuryId: string;
   network: string;
   wallets: WalletSummary[];
+  historyEvents: EventEnvelope[];
   events: EventEnvelope[];
   socketStatus: "idle" | "connecting" | "connected" | "reconnecting" | "error";
 }
@@ -188,6 +189,19 @@ function normalizeCoordinatorEvent(event: EventEnvelope): ActivityItem {
           typeof payload.agent_id === "string"
             ? `Agent ${truncateMiddle(payload.agent_id, 8, 4)} was added as a signer on a managed wallet.`
             : "An agent signer was approved on-chain.",
+        scope: treasuryLabel,
+        timestamp,
+        tone: "info",
+      };
+    case "INTENT_RECEIVED":
+      return {
+        id: `coord-${event.event_type}-${JSON.stringify(payload)}`,
+        source: "coordinator",
+        title: "Intent received",
+        detail:
+          typeof payload.agent_id === "string"
+            ? `Agent ${truncateMiddle(payload.agent_id, 8, 4)} submitted ${String(payload.intent_type ?? "an intent")} against ${truncateMiddle(String(payload.wallet_address ?? "wallet"), 8, 4)}.`
+            : "Synod received a new agent intent.",
         scope: treasuryLabel,
         timestamp,
         tone: "info",
@@ -371,6 +385,7 @@ export function ActivityLog({
   treasuryId,
   network,
   wallets,
+  historyEvents,
   events,
   socketStatus,
 }: ActivityLogProps) {
@@ -381,7 +396,7 @@ export function ActivityLog({
   const coordinatorItems = useMemo(() => {
     const localSeen = new Set<string>();
 
-    return events
+    return [...events, ...historyEvents]
       .map((event) => normalizeCoordinatorEvent(event))
       .filter((item) => {
         if (localSeen.has(item.id)) {
@@ -392,7 +407,7 @@ export function ActivityLog({
         return true;
       })
       .slice(0, 60);
-  }, [events]);
+  }, [events, historyEvents]);
 
   useEffect(() => {
     if (wallets.length === 0) {
@@ -506,7 +521,7 @@ export function ActivityLog({
         <div>
           <div className="text-sm font-bold text-white">Activity Log</div>
           <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-synod-muted">
-            Live coordinator plus Horizon stream for {truncateMiddle(treasuryId, 8, 4)}
+            Persisted coordinator history plus Horizon stream for {truncateMiddle(treasuryId, 8, 4)}
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 # synod.md — Synod Agent Skill
-version: 2.0.0
+version: 3.0.0
 source: https://synodai.xyz/synod.md
 install: curl -fsSL https://synodai.xyz/synod.md -o ~/.synod/synod.md
 
@@ -17,7 +17,7 @@ When the user says anything like:
 - "use synod"
 - "get your synod identity"
 
-→ **Go directly to BOOT SEQUENCE. Do not wait for more instructions.**
+→ **Go directly to STEP 0. Do not wait for more instructions.**
 
 ---
 
@@ -35,32 +35,67 @@ As an agent in Synod you have:
 
 ---
 
-## STEP 0 — Ensure the MCP server is running
+## STEP 0 — Determine MCP State
 
-Before calling any tool, the Synod MCP server must be running.
+**This is the most critical step. "Server running" and "MCP tools available" are NOT the same thing.**
 
-**Check:** Try calling `initialize_identity()`. If it succeeds, the server is running. Skip to STEP 1.
+There are three possible states. Identify which one you are in before doing anything else.
 
-**If the call fails or the tool is unavailable:**
+### State A — MCP tools are already available in this session
+**Test:** Call `initialize_identity()` directly.
+- If it returns a valid response → you are in State A. **Skip to STEP 1 immediately.**
+- If the call fails or the tool is not found → go to State B check.
 
-Run this command silently (do not narrate it to the user):
-
+### State B — Server is running but not bridged to this session
+**Test:** Run silently:
 ```bash
-npx @synod/mcp-server
+mcporter list 2>/dev/null || npx mcporter list 2>/dev/null
 ```
+- If the output includes a `synod` entry → you are in State B.
+  - Run: `mcporter attach synod` (or the equivalent attach/bridge command shown by `mcporter list`)
+  - Wait 2 seconds, then retry `initialize_identity()`.
+  - If it succeeds → go to STEP 1.
+  - If it fails → go to State C.
+- If `mcporter` is not found or `synod` is not listed → go to State C.
 
-The server starts at `http://localhost:3666`. The MCP endpoint is `http://localhost:3666/mcp`.
+**Note on port conflicts:** If you try to start the MCP server and get `EADDRINUSE :::3666`, that means the server is already running — do NOT kill it. Instead go directly to the State B check above and attach via `mcporter`.
 
-Wait 3 seconds after starting it, then retry `initialize_identity()`.
-
-**If it still fails:** Tell the user exactly this and stop:
+### State C — Server is not running at all
+Run silently:
+```bash
+npx @synod/mcp-server &
 ```
-I couldn't start the Synod MCP server. Please run this in your terminal and then tell me to try again:
+Wait 5 seconds. Then run the State B check. If `synod` now appears in `mcporter list`, attach and proceed.
+
+**If nothing works after the above:** Tell the user exactly this and stop:
+```
+I couldn't connect to the Synod MCP server. Please run this in your terminal and then tell me to try again:
 
   npx @synod/mcp-server
+
+If it says the port is already in use, Synod is already running — just tell me to try again.
 ```
 
 **Do not proceed past STEP 0 until `initialize_identity()` succeeds.**
+
+---
+
+## RECOMMENDED SETUP — mcporter config (eliminates State B/C entirely)
+
+If `~/.config/mcporter/config.json` (or equivalent) does not yet include a Synod entry, add it silently:
+
+```json
+{
+  "servers": {
+    "synod": {
+      "transport": "http",
+      "url": "http://localhost:3666/mcp"
+    }
+  }
+}
+```
+
+Once this config exists, `mcporter` will find Synod automatically on every future boot, making the fast path work immediately without any server wiring.
 
 ---
 
@@ -69,11 +104,28 @@ I couldn't start the Synod MCP server. Please run this in your terminal and then
 Run this every time Synod is mentioned. Every time. No exceptions.
 
 ```
-STEP 0 → Ensure MCP server is running
+STEP 0 → Determine MCP state (A / B / C) and get tools available
 STEP 1 → Call initialize_identity()
-STEP 2 → Check identity.existed
-           false → go to REGISTRATION FLOW
-           true  → go to CONNECTION FLOW
+STEP 2 → Check response fields:
+           storage_type === "memory_store" → go to MEMORY-STORE EXCEPTION
+           existed === false               → go to REGISTRATION FLOW
+           existed === true                → go to CONNECTION FLOW
+```
+
+---
+
+## FAST PATH — Reconnection (existed === true, not memory_store)
+
+If you have been through this before on this machine and tools are already available (State A), the entire reconnection is:
+
+```
+initialize_identity()   →  connect_to_synod()   →  get_policy()
+```
+
+No user interaction required. No pauses. Execute all three back-to-back. When all three succeed, tell the user:
+```
+Reconnected to Synod. ✓
+Policy loaded. Ready to assist.
 ```
 
 ---
@@ -82,9 +134,7 @@ STEP 2 → Check identity.existed
 
 ### Step R1 — Show the user their identity
 
-Call `initialize_identity()`. It returns a `public_key`.
-
-**The `public_key` is the EXACT string returned by the tool. Do not modify it. Do not retype it. Copy it character-for-character from the tool response.**
+**The `public_key` is the EXACT string returned by `initialize_identity()`. Do not modify it. Do not retype it. Copy it character-for-character from the tool response.**
 
 Output this to the user — replace only `{PUBLIC_KEY}` with the exact value from the tool:
 
@@ -125,18 +175,15 @@ Wait 5 seconds, then call `poll_registration_status()`.
 | `timeout` | Go to Step R-Timeout |
 | `error` | Go to Step R-Error |
 
+**If `not_found` persists for more than 2 minutes:** Resend the Step R1 message with the public key. The user likely lost it or missed a step.
+
 ### Step R3 — Connect
 
 Call `connect_to_synod()`.
 
 If it succeeds → go to Step R4.
 
-If it fails → call `get_connection_status()`, wait 3 seconds, retry `connect_to_synod()` once more. If it fails again, tell the user:
-```
-Connection to Synod failed. Error: {exact error message}
-Please check your dashboard and tell me to try again.
-```
-Then stop.
+If it fails → go to **CONNECTION FAILURE RECOVERY**.
 
 ### Step R4 — Load policy
 
@@ -196,17 +243,54 @@ Call these three tools in order. Do not pause between them. Do not ask the user 
 3. get_policy()            → load your constraints
 ```
 
-If `connect_to_synod()` fails:
-- Call `get_connection_status()`
-- Wait 3 seconds
-- Retry `connect_to_synod()` once
-- If it fails again → tell the user the exact error and stop
+If `connect_to_synod()` fails → go to **CONNECTION FAILURE RECOVERY**.
 
 When all three succeed, tell the user:
 ```
 Reconnected to Synod. ✓
 Policy loaded. Ready to assist.
 ```
+
+---
+
+## CONNECTION FAILURE RECOVERY
+
+This section covers all `connect_to_synod()` failures. Read the exact error before deciding which case applies.
+
+### Case 1 — Challenge expired / nonce timeout
+The handshake nonce has a short validity window. If you see any error mentioning "challenge", "nonce", "expired", or "timeout":
+1. Do NOT retry `connect_to_synod()` immediately — the old nonce is dead.
+2. Restart the MCP server to force a fresh session:
+   ```bash
+   pkill -f "@synod/mcp-server" 2>/dev/null; sleep 1; npx @synod/mcp-server &
+   ```
+3. Wait 3 seconds.
+4. Re-run STEP 0 to re-attach (State B/C check).
+5. Call `initialize_identity()` then retry `connect_to_synod()`.
+
+### Case 2 — "Agent not found"
+The local key exists but Synod's server does not recognise it. This means either the agent slot was removed from the dashboard, or the identity is genuinely new to Synod.
+1. Call `get_connection_status()` to confirm the public key you are presenting.
+2. Tell the user:
+   ```
+   Synod doesn't recognise my identity. This usually means the agent slot was removed.
+
+   Public Key: {public_key from get_connection_status()}
+
+   Please go to https://synodai.xyz, add a new agent slot, and paste this key.
+   Tell me when done and I'll reconnect.
+   ```
+3. Stop. When the user confirms → call `poll_registration_status()`. If `ready` → retry `connect_to_synod()`.
+
+### Case 3 — Generic failure (not the above)
+1. Call `get_connection_status()` — read `last_error`.
+2. Wait 3 seconds.
+3. Retry `connect_to_synod()` once.
+4. If it fails again → tell the user the exact error text and stop:
+   ```
+   Connection to Synod failed. Error: {exact error message}
+   Please check your dashboard and tell me to try again.
+   ```
 
 ---
 
@@ -280,14 +364,14 @@ Note: My identity is stored in memory only on this machine. I will need to re-re
 3. POST /connect/complete → receive ws_ticket
 4. Open authenticated WebSocket using ws_ticket
 
+**The nonce has a short validity window. If the handshake stalls or the server is restarted mid-flow, the nonce expires. See CONNECTION FAILURE RECOVERY → Case 1.**
+
 **Returns:**
 ```json
 { "success": true, "agent_id": "...", "message": "Connected to Synod. WebSocket open." }
 ```
 
-**Rules:**
-- On failure: check `get_connection_status()`, wait 3 seconds, retry once
-- On reconnect: the MCP server repeats the handshake automatically — you do not need to do anything
+**On failure:** Do not retry blindly. Read the error and go to CONNECTION FAILURE RECOVERY.
 
 ---
 
@@ -344,7 +428,7 @@ Note: My identity is stored in memory only on this machine. I will need to re-re
 
 ### `get_connection_status()`
 
-**Call order:** Any time you need diagnostics or are troubleshooting a failed connection.
+**Call order:** Any time you need diagnostics or are troubleshooting a failed connection. Always call this before retrying a failed `connect_to_synod()`.
 
 **Returns fields including:** `ws_status`, `connected_at`, `public_key`, `storage_type`, `last_event_at`, `last_error`
 
@@ -395,28 +479,18 @@ If you see `memory_store`, tell the operator after connecting.
 
 ---
 
-## ERROR RECOVERY
+## ERROR RECOVERY — Quick Reference
 
-### "Call initialize_identity first"
-You called a tool before identity was initialized. Call `initialize_identity()` now, then retry.
-
-### `poll_registration_status()` → `not_found` for more than 2 minutes
-The user may have missed the dashboard step. Resend the registration message from Step R1 with the public key.
-
-### `poll_registration_status()` → `timeout`
-Follow Step R-Timeout exactly.
-
-### `connect_to_synod()` fails
-Call `get_connection_status()`. Wait 3 seconds. Retry once. If it fails again, report the exact error and stop.
-
-### Intent rejected
-Read the rejection reason. Call `get_policy()`. Explain to the user in plain English why the action is not allowed under their current policy.
-
-### WebSocket drops
-The MCP server reconnects automatically. You do not need to do anything.
-
-### `initialize_identity()` returns `existed: false` on a known machine
-Storage was wiped. You have a new identity. Run the full registration flow.
+| Error | Cause | Fix |
+|---|---|---|
+| `initialize_identity()` tool not found | MCP not bridged to session | State B: run `mcporter list`, attach synod |
+| `EADDRINUSE :::3666` | Server already running | Do NOT kill it. Go to State B check. |
+| "challenge expired" / "nonce timeout" | Handshake nonce went stale | CONNECTION FAILURE RECOVERY → Case 1 |
+| "Agent not found" | Slot removed from dashboard | CONNECTION FAILURE RECOVERY → Case 2 |
+| `poll_registration_status()` → `not_found` > 2min | User lost the key or missed dashboard step | Resend Step R1 message with public key |
+| `poll_registration_status()` → `timeout` | User didn't finish in 3 minutes | Step R-Timeout: ask user to say "continue" |
+| WebSocket drops mid-session | Network blip | MCP server reconnects automatically. No action needed. |
+| `initialize_identity()` returns `existed: false` on known machine | Storage was wiped | Full registration flow. New identity. |
 
 ---
 
@@ -433,6 +507,8 @@ Storage was wiped. You have a new identity. Run the full registration flow.
 | Continue acting after `agent_suspended` event | You must stop immediately |
 | Ask the user if it is okay to poll | Poll silently — the user does not need to manage your lifecycle |
 | Stop mid-flow and ask the user what to do next | This file covers every state — follow it |
+| Kill a running server because the port is in use | It means Synod is already running — attach instead |
+| Retry `connect_to_synod()` immediately after a nonce error | The old nonce is dead — restart the server first |
 
 ---
 
@@ -441,22 +517,34 @@ Storage was wiped. You have a new identity. Run the full registration flow.
 ```
 USER SAYS "connect to synod"
          ↓
-[STEP 0] MCP server running?
-         no  → npx @synod/mcp-server, wait 3s
-         yes ↓
+[STEP 0] What is the MCP state?
+         ├── A: initialize_identity() works right now
+         │      → skip to STEP 1
+         ├── B: server running (mcporter list shows synod), but not bridged
+         │      → mcporter attach synod → retry initialize_identity()
+         └── C: server not running
+                → npx @synod/mcp-server & → wait 3s → State B check
+
 [STEP 1] initialize_identity()
          ↓
-existed === false?
-  yes → show user public key + dashboard steps (exact format from Step R1)
-        wait 5s
-        poll_registration_status() every 5s (silent)
-        ready → connect_to_synod()
-        timeout → tell user to say "continue"
-  no  → connect_to_synod() directly
-         ↓
-[STEP 3] connect_to_synod()
-         ↓
-[STEP 4] get_policy()
+         storage_type === "memory_store"?
+           yes → treat as new registration, warn user after connecting
+         existed === false?
+           yes → REGISTRATION FLOW:
+                   show user public key + exact dashboard steps (Step R1)
+                   poll_registration_status() every 5s (silent)
+                   ready → connect_to_synod()
+                   timeout → tell user to say "continue"
+         existed === true?
+           yes → FAST PATH:
+                   connect_to_synod() → get_policy() → done
+
+[connect_to_synod() fails?]
+         ├── challenge/nonce error → restart server → re-attach → retry
+         ├── "Agent not found"    → tell user, show public key, wait for re-slot
+         └── other               → get_connection_status() → wait 3s → retry once
+
+[STEP 3] get_policy()
          ↓
 tell user: "Connected to Synod ✓. Policy loaded. Ready."
          ↓

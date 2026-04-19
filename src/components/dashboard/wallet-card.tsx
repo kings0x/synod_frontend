@@ -69,7 +69,7 @@ export function WalletCard({
   onBalanceUpdate,
   onRefresh,
 }: WalletCardProps) {
-  const { connect, disconnect } = useStellarWallet();
+  const { disconnect } = useStellarWallet();
   const [balances, setBalances] = useState<Balance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -191,18 +191,6 @@ export function WalletCard({
         coordinator_pubkey: string;
       };
 
-      setRevokeStatus("Connecting to wallet extension...");
-      const connectedAddress = await connect();
-      if (!connectedAddress) {
-        throw new Error("Wallet connection cancelled");
-      }
-
-      if (connectedAddress !== wallet.wallet_address) {
-        throw new Error(
-          `Wallet extension connected ${connectedAddress.substring(0, 8)}... instead of ${wallet.wallet_address.substring(0, 8)}...`,
-        );
-      }
-
       setRevokeStatus("Building revocation transaction...");
       const account = await horizon.loadAccount(wallet.wallet_address);
       const tx = new TransactionBuilder(account, {
@@ -223,13 +211,12 @@ export function WalletCard({
         .setTimeout(30)
         .build();
 
-      const onChainAccount = await horizon.loadAccount(wallet.wallet_address);
-      const isCoordinatorSigner = onChainAccount.signers.some(
+      const isCoordinatorSigner = account.signers.some(
         (signer: StellarSigner) => signer.key === coordinator_pubkey && signer.weight > 0,
       );
-      const highThreshold = onChainAccount.thresholds?.high_threshold ?? 0;
+      const highThreshold = account.thresholds?.high_threshold ?? 0;
       const masterWeight =
-        onChainAccount.signers.find(
+        account.signers.find(
           (signer: StellarSigner) => signer.key === wallet.wallet_address,
         )?.weight ?? 1;
       const needsCosign = isCoordinatorSigner && highThreshold > masterWeight;
@@ -312,17 +299,6 @@ export function WalletCard({
     setError("");
 
     try {
-      const addr = await connect();
-      if (!addr) {
-        return;
-      }
-
-      if (addr !== wallet.wallet_address) {
-        throw new Error(
-          `Wallet extension connected ${addr.substring(0, 8)}... instead of ${wallet.wallet_address.substring(0, 8)}...`,
-        );
-      }
-
       const setupRes = await apiFetch(`/multisig/${treasuryId}/setup`, { token });
       if (!setupRes.ok) {
         const errData = (await setupRes.json().catch(() => ({}))) as { message?: string };

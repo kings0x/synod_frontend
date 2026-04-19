@@ -16,6 +16,7 @@ interface WalletConnectProps {
   activeWallets?: Array<{
     wallet_address: string;
     status: string;
+    multisig_active: boolean;
   }>;
   onSuccess?: () => void;
 }
@@ -82,11 +83,15 @@ export function WalletConnect({ treasuryId, token, activeWallets = [], onSuccess
 
       const existingWallet = (activeWallets || []).find(w => w.wallet_address === addr)
 
-      if (existingWallet?.status === 'ACTIVE') {
+      if (existingWallet?.multisig_active) {
         setStatusText("Wallet is already fully secured by Synod.")
         setStep('done')
         setTimeout(() => setIsOpen(false), 2500)
         return
+      }
+
+      if (existingWallet) {
+        setStatusText("Wallet already linked. Completing multisig setup...")
       }
 
       // 2. Verification check
