@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   Shield,
   MoreHorizontal,
@@ -13,7 +13,11 @@ import { Horizon, TransactionBuilder, Networks, Operation } from "@stellar/stell
 import { apiFetch } from "@/lib/api";
 import { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
 import { useStellarWallet } from "@/hooks/use-stellar-wallet";
-import { isCoordinatorMultisigConfigured, waitForCoordinatorMultisig } from "@/lib/stellar-multisig";
+import {
+  isCoordinatorMultisigConfigured,
+  planCoordinatorRevocation,
+  waitForCoordinatorMultisig,
+} from "@/lib/stellar-multisig";
 
 interface WalletCardProps {
   treasuryId: string;
@@ -37,7 +41,6 @@ interface Balance {
 
 type LoadedAccount = Awaited<ReturnType<Horizon.Server["loadAccount"]>>;
 type StellarBalance = LoadedAccount["balances"][number];
-type StellarSigner = LoadedAccount["signers"][number];
 
 const horizon = new Horizon.Server("https://horizon-testnet.stellar.org");
 
@@ -47,6 +50,14 @@ function getErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+async function getApiErrorMessage(response: Response, fallback: string) {
+  const body = (await response.json().catch(() => null)) as
+    | { message?: string; error?: string }
+    | null;
+
+  return body?.message || body?.error || fallback;
 }
 
 function getAssetCode(balance: StellarBalance) {
@@ -77,6 +88,24 @@ export function WalletCard({
   const [isCompletingSetup, setIsCompletingSetup] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [revokeStatus, setRevokeStatus] = useState("");
+  const hasBalancesRef = useRef(false);
+
+  useEffect(() => {
+    hasBalancesRef.current = balances.length > 0;
+  }, [balances.length]);
+
+  const emitBalanceUpdate = useEffectEvent((address: string, totalAum: number) => {
+    onBalanceUpdate?.(address, totalAum);
+  });
+
+  const finalizeDisconnectCleanup = async () => {
+    await disconnectWalletSession();
+    clearWalletLocally();
+    onDisconnect?.(wallet.wallet_address);
+    onRefresh?.();
+    setShowConfirm(false);
+    setError("");
+  };
 
   const clearWalletLocally = () => {
     try {
@@ -130,8 +159,13 @@ export function WalletCard({
   };
 
   useEffect(() => {
-    async function fetchBalances() {
-      setLoading(true);
+    let cancelled = false;
+
+    async function fetchBalances(background = false) {
+      if (!background || !hasBalancesRef.current) {
+        setLoading(true);
+      }
+
       try {
         const account = await horizon.loadAccount(wallet.wallet_address);
         const nextBalances: Balance[] = account.balances.map((balance: StellarBalance) => {
@@ -146,24 +180,41 @@ export function WalletCard({
           };
         });
 
+        if (cancelled) {
+          return;
+        }
+
         setBalances(nextBalances);
+        setError("");
         const totalAum = nextBalances.reduce((sum, balance) => sum + balance.usd_value, 0);
-        onBalanceUpdate?.(wallet.wallet_address, totalAum);
+        emitBalanceUpdate(wallet.wallet_address, totalAum);
       } catch (fetchError) {
         console.error("Failed to fetch balance", fetchError);
-        setError("Network error");
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!hasBalancesRef.current) {
+          setError("Network error");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     void fetchBalances();
     const interval = window.setInterval(() => {
-      void fetchBalances();
+      void fetchBalances(true);
     }, 30000);
 
-    return () => window.clearInterval(interval);
-  }, [wallet.wallet_address, onBalanceUpdate]);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [wallet.wallet_address]);
 
   const handleSecureDisconnect = async () => {
     if (!token) {
@@ -193,33 +244,65 @@ export function WalletCard({
 
       setRevokeStatus("Building revocation transaction...");
       const account = await horizon.loadAccount(wallet.wallet_address);
+      const revokePlan = planCoordinatorRevocation(
+        account,
+        wallet.wallet_address,
+        coordinator_pubkey,
+      );
+
+      if (revokePlan.shouldBypassOnChain) {
+        setRevokeStatus("Coordinator already removed on-chain. Cleaning up Synod...");
+        const res = await apiFetch(`/multisig/${treasuryId}/revoke`, {
+          method: "POST",
+          token,
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            xdr: "OFF_CHAIN_BYPASS",
+            wallet_address: wallet.wallet_address,
+          }),
+        });
+
+        if (!res.ok) {
+          throw new Error(
+            await getApiErrorMessage(res, "Failed to remove wallet from Synod."),
+          );
+        }
+
+        await finalizeDisconnectCleanup();
+        return;
+      }
+
+      if (
+        !revokePlan.shouldRemoveCoordinatorSigner &&
+        !revokePlan.canAuthorizeThresholdResetAlone
+      ) {
+        throw new Error(
+          "This wallet no longer lists Synod as a signer, but its thresholds still require multisig. Lower the thresholds from the wallet first, then try disconnect again.",
+        );
+      }
+
+      const setOptionsOperation: Parameters<typeof Operation.setOptions>[0] = {};
+      if (revokePlan.shouldRemoveCoordinatorSigner) {
+        setOptionsOperation.signer = {
+          ed25519PublicKey: coordinator_pubkey,
+          weight: 0,
+        };
+      }
+      if (revokePlan.shouldResetThresholds) {
+        setOptionsOperation.lowThreshold = 1;
+        setOptionsOperation.medThreshold = 1;
+        setOptionsOperation.highThreshold = 1;
+      }
+
       const tx = new TransactionBuilder(account, {
         fee: "1000",
         networkPassphrase: Networks.TESTNET,
       })
-        .addOperation(
-          Operation.setOptions({
-            signer: {
-              ed25519PublicKey: coordinator_pubkey,
-              weight: 0,
-            },
-            lowThreshold: 0,
-            medThreshold: 0,
-            highThreshold: 0,
-          }),
-        )
+        .addOperation(Operation.setOptions(setOptionsOperation))
         .setTimeout(30)
         .build();
-
-      const isCoordinatorSigner = account.signers.some(
-        (signer: StellarSigner) => signer.key === coordinator_pubkey && signer.weight > 0,
-      );
-      const highThreshold = account.thresholds?.high_threshold ?? 0;
-      const masterWeight =
-        account.signers.find(
-          (signer: StellarSigner) => signer.key === wallet.wallet_address,
-        )?.weight ?? 1;
-      const needsCosign = isCoordinatorSigner && highThreshold > masterWeight;
 
       setRevokeStatus("Sign revocation in your wallet...");
       const result = await StellarWalletsKit.signTransaction(tx.toXDR(), {
@@ -240,47 +323,26 @@ export function WalletCard({
         );
       }
 
-      if (!needsCosign) {
-        setRevokeStatus("Submitting directly to Stellar...");
-        const signedTx = TransactionBuilder.fromXDR(result.signedTxXdr, Networks.TESTNET);
-        await horizon.submitTransaction(signedTx);
+      setRevokeStatus("Finalizing revocation with Synod Security...");
+      const res = await apiFetch(`/multisig/${treasuryId}/revoke`, {
+        method: "POST",
+        token,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          xdr: result.signedTxXdr,
+          wallet_address: wallet.wallet_address,
+        }),
+      });
 
-        await apiFetch(`/multisig/${treasuryId}/revoke`, {
-          method: "POST",
-          token,
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            xdr: "OFF_CHAIN_BYPASS",
-            wallet_address: wallet.wallet_address,
-          }),
-        });
-      } else {
-        setRevokeStatus("Finalizing revocation with Synod Security...");
-        const res = await apiFetch(`/multisig/${treasuryId}/revoke`, {
-          method: "POST",
-          token,
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            xdr: result.signedTxXdr,
-            wallet_address: wallet.wallet_address,
-          }),
-        });
-
-        if (!res.ok) {
-          const errData = (await res.json().catch(() => ({}))) as { message?: string };
-          throw new Error(errData.message?.split("{")[0] || "Revocation failed. Please try again.");
-        }
+      if (!res.ok) {
+        throw new Error(
+          await getApiErrorMessage(res, "Revocation failed. Please try again."),
+        );
       }
 
-      await disconnectWalletSession();
-      clearWalletLocally();
-      onDisconnect?.(wallet.wallet_address);
-      onRefresh?.();
-      setShowConfirm(false);
+      await finalizeDisconnectCleanup();
     } catch (disconnectError: unknown) {
       console.error("Revocation failed:", disconnectError);
       setError(getErrorMessage(disconnectError, "Revocation failed"));

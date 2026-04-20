@@ -3,6 +3,18 @@ import { Horizon } from "@stellar/stellar-sdk";
 type LoadedAccount = Awaited<ReturnType<Horizon.Server["loadAccount"]>>;
 type StellarSigner = LoadedAccount["signers"][number];
 
+export interface CoordinatorRevocationPlan {
+  coordinatorWeight: number;
+  masterWeight: number;
+  lowThreshold: number;
+  medThreshold: number;
+  highThreshold: number;
+  shouldRemoveCoordinatorSigner: boolean;
+  shouldResetThresholds: boolean;
+  shouldBypassOnChain: boolean;
+  canAuthorizeThresholdResetAlone: boolean;
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -30,6 +42,36 @@ export function isCoordinatorMultisigConfigured(
     highThreshold,
     hasSigner: coordinatorWeight >= 20,
     hasThresholds: lowThreshold >= 1 && medThreshold >= 21 && highThreshold >= 21,
+  };
+}
+
+export function planCoordinatorRevocation(
+  account: LoadedAccount,
+  walletAddress: string,
+  coordinatorPubkey: string,
+): CoordinatorRevocationPlan {
+  const coordinatorWeight = getAccountSignerWeight(account, coordinatorPubkey);
+  const masterWeight = getAccountSignerWeight(account, walletAddress) || 1;
+  const lowThreshold = account.thresholds?.low_threshold ?? 0;
+  const medThreshold = account.thresholds?.med_threshold ?? 0;
+  const highThreshold = account.thresholds?.high_threshold ?? 0;
+
+  const shouldRemoveCoordinatorSigner = coordinatorWeight > 0;
+  const shouldResetThresholds =
+    lowThreshold !== 1 || medThreshold !== 1 || highThreshold !== 1;
+  const shouldBypassOnChain =
+    !shouldRemoveCoordinatorSigner && !shouldResetThresholds;
+
+  return {
+    coordinatorWeight,
+    masterWeight,
+    lowThreshold,
+    medThreshold,
+    highThreshold,
+    shouldRemoveCoordinatorSigner,
+    shouldResetThresholds,
+    shouldBypassOnChain,
+    canAuthorizeThresholdResetAlone: highThreshold <= masterWeight,
   };
 }
 

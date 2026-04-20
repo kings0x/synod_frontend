@@ -329,6 +329,32 @@ export default function DashboardPage() {
     setActiveTab("agents");
   };
 
+  const handleWalletBalanceUpdate = useCallback((address: string, aum: number) => {
+    setWalletBalances((prev) => ({ ...prev, [address]: aum }));
+    setAumLoaded(true);
+  }, []);
+
+  const refreshAfterWalletMutation = useCallback(async () => {
+    if (!state) {
+      return;
+    }
+
+    await triggerResync();
+    await fetchData();
+  }, [fetchData, state, triggerResync]);
+
+  const handleWalletDisconnect = useCallback(
+    (address: string) => {
+      setWalletBalances((prev) => {
+        const next = { ...prev };
+        delete next[address];
+        return next;
+      });
+      void refreshAfterWalletMutation();
+    },
+    [refreshAfterWalletMutation],
+  );
+
   if (authError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-synod-bg p-4">
@@ -503,23 +529,9 @@ export default function DashboardPage() {
                     treasuryId={state.treasury_id}
                     token={token}
                     wallet={wallet}
-                    onRefresh={() => {
-                      void triggerResync();
-                      void fetchData();
-                    }}
-                    onBalanceUpdate={(address, aum) => {
-                      setWalletBalances((prev) => ({ ...prev, [address]: aum }));
-                      setAumLoaded(true);
-                    }}
-                    onDisconnect={() => {
-                      setWalletBalances((prev) => {
-                        const next = { ...prev };
-                        delete next[wallet.wallet_address];
-                        return next;
-                      });
-                      void triggerResync();
-                      void fetchData();
-                    }}
+                    onRefresh={refreshAfterWalletMutation}
+                    onBalanceUpdate={handleWalletBalanceUpdate}
+                    onDisconnect={handleWalletDisconnect}
                   />
                 ))}
                 <WalletConnect
@@ -527,8 +539,7 @@ export default function DashboardPage() {
                   token={token}
                   activeWallets={state.wallets}
                   onSuccess={() => {
-                    void triggerResync();
-                    void fetchData();
+                    void refreshAfterWalletMutation();
                   }}
                 />
               </div>
