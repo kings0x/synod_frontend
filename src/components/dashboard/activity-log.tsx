@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Activity, ArrowRightLeft, CheckCircle2, ShieldAlert, Wallet } from "lucide-react";
+import { Activity, ArrowRightLeft, CheckCircle2, Copy, ExternalLink, ShieldAlert, Wallet } from "lucide-react";
 
 interface WalletSummary {
   wallet_address: string;
@@ -34,6 +34,8 @@ interface ActivityItem {
   scope: string;
   timestamp: string;
   tone: ActivityTone;
+  txHash?: string;
+  txUrl?: string;
 }
 
 function truncateMiddle(value: string, left = 6, right = 4) {
@@ -76,7 +78,7 @@ function toneClasses(tone: ActivityTone) {
   return "border-white/8 bg-white/[0.03] text-synod-muted";
 }
 
-function normalizeCoordinatorEvent(event: EventEnvelope): ActivityItem {
+function normalizeCoordinatorEvent(event: EventEnvelope, network: string): ActivityItem {
   const payload = event.payload ?? {};
   const timestamp =
     typeof payload.timestamp === "string"
@@ -243,17 +245,29 @@ function normalizeCoordinatorEvent(event: EventEnvelope): ActivityItem {
         tone: "info",
       };
     case "INTENT_CONFIRMED":
+      const txHash =
+        typeof payload.tx_hash === "string" && payload.tx_hash.trim()
+          ? payload.tx_hash
+          : undefined;
       return {
         id: `coord-${event.event_type}-${JSON.stringify(payload)}`,
         source: "coordinator",
         title: "Intent confirmed",
         detail:
           typeof payload.agent_id === "string"
-            ? `Agent ${truncateMiddle(payload.agent_id, 8, 4)} completed a transaction successfully.`
+            ? txHash
+              ? `Agent ${truncateMiddle(payload.agent_id, 8, 4)} submitted a co-signed transaction on Stellar.`
+              : `Agent ${truncateMiddle(payload.agent_id, 8, 4)} completed a transaction successfully.`
             : "An agent intent was confirmed.",
         scope: treasuryLabel,
         timestamp,
         tone: "success",
+        ...(txHash
+          ? {
+              txHash,
+              txUrl: `${buildHorizonOrigin(network)}/transactions/${txHash}`,
+            }
+          : {}),
       };
     case "INTENT_REJECTED":
       return {
@@ -397,7 +411,7 @@ export function ActivityLog({
     const localSeen = new Set<string>();
 
     return [...events, ...historyEvents]
-      .map((event) => normalizeCoordinatorEvent(event))
+      .map((event) => normalizeCoordinatorEvent(event, network))
       .filter((item) => {
         if (localSeen.has(item.id)) {
           return false;
@@ -407,7 +421,7 @@ export function ActivityLog({
         return true;
       })
       .slice(0, 60);
-  }, [events, historyEvents]);
+  }, [events, historyEvents, network]);
 
   useEffect(() => {
     if (wallets.length === 0) {
@@ -570,6 +584,33 @@ export function ActivityLog({
                       <div className="text-sm font-semibold text-white">{item.title}</div>
                     </div>
                     <p className="text-sm leading-6 text-synod-muted">{item.detail}</p>
+                    {item.txHash ? (
+                      <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-synod-muted">
+                        <span className="font-semibold text-white">Tx hash</span>
+                        <code className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-[11px] text-sky-100">
+                          {item.txHash}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => navigator.clipboard.writeText(item.txHash ?? "")}
+                          className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[11px] text-white transition hover:border-sky-400/40 hover:text-sky-100"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy
+                        </button>
+                        {item.txUrl ? (
+                          <a
+                            href={item.txUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[11px] text-white transition hover:border-sky-400/40 hover:text-sky-100"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Horizon
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="shrink-0 space-y-1 text-right">

@@ -393,7 +393,7 @@ Note: My identity is stored in memory only on this machine. I will need to re-re
 
 **Call order:** Only when the user explicitly requests an on-chain action.
 
-**What it does:** Signs the canonical JSON payload and sends it to Synod for policy validation and on-chain execution.
+**What it does:** Builds the Stellar transaction locally, signs it with the agent identity, signs the canonical intent payload, and sends both to Synod. Synod then validates policy, validates the signed transaction against the signed intent, co-signs, submits to Stellar, and returns the on-chain transaction hash if execution succeeds.
 
 **Payload shape:**
 ```json
@@ -421,8 +421,13 @@ Note: My identity is stored in memory only on this machine. I will need to re-re
 - Always call `get_policy()` before deciding whether to submit
 - Only submit when the user actually requests an on-chain action — never speculatively
 - Always use string amounts: `"10"` not `10`
+- Build and sign the transaction first; Synod is the final validator, co-signer, and broadcaster
+- The transaction source wallet must be a wallet assigned to this agent under policy
+- The signed transaction must exactly match the intent you decided to sign: same destination, asset, amount, wallet, and memo if provided
 - Do not modify the intent object after deciding what to sign
+- Treat success as real only when Synod returns a `tx_hash`
 - If rejected: read the rejection reason, call `get_policy()`, explain to the user why
+- If there is no `tx_hash`, do not claim the payment executed on-chain
 
 ---
 
@@ -449,7 +454,7 @@ Synod pushes real-time events over the WebSocket. Retrieve them with `get_recent
 | Event type | What to do |
 |---|---|
 | `policy_updated` | Call `get_policy()` immediately before your next action |
-| `intent_confirmed` | Tell the user the action executed on-chain |
+| `intent_confirmed` | Tell the user the action executed on-chain and include the returned `tx_hash` |
 | `intent_rejected` | Read rejection reason. Call `get_policy()`. Explain to user. |
 | `intent_failed` | Tell the user the action failed on-chain with the reason |
 | `agent_suspended` | **Stop all actions immediately.** Tell the user: "I have been suspended by your operator. I cannot take any actions until the suspension is lifted." |
